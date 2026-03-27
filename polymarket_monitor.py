@@ -8,6 +8,10 @@ import requests
 import json
 import time
 import threading
+import os
+import re
+import google.generativeai as genai
+from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -15,16 +19,21 @@ from telegram.ext import (
 )
 
 logging.basicConfig(level=logging.WARNING)
+load_dotenv()
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
-BOT_TOKEN  = "7256069971:AAHNTBZZipJI9mF1K1lRyNiQb2n7qEEDEDY"
-CHAT_ID    = 798283148
+BOT_TOKEN  = os.getenv("BOT_TOKEN", "7256069971:AAHNTBZZipJI9mF1K1lRyNiQb2n7qEEDEDY")
+CHAT_ID    = int(os.getenv("CHAT_ID", 798283148))
+GEMINI_KEY = os.getenv("GEMINI_API_KEY", "")
+
+if GEMINI_KEY:
+    genai.configure(api_key=GEMINI_KEY)
 # ────────────────────────────────────────────────────────────────────────────
 
 # Shared state
 state = {
     "running": False,
-    "interval": 60,
+    "interval": 900,  # 15 minutes default
     "limit": 500,
     "yes_min": 0.30,
     "yes_max": 0.40,
@@ -35,6 +44,44 @@ state = {
     "last_update": None,
     "last_count": 0,
 }
+
+# ─── GEMINI HELPER ──────────────────────────────────────────────────────────
+
+async def get_gemini_probability(question, description, end_date):
+    if not GEMINI_KEY:
+        return None, "Gemini API key is not set."
+
+    prompt = (
+        f"Market: {question}\n"
+        f"Description: {description}\n"
+        f"End Date: {end_date}\n\n"
+        "Bu Polymarket bozori bo'yicha voqea sodir bo'lish haqiqiy ehtimoli (true probability) nechada? "
+        "0% dan 100% gacha aniq raqam bilan javob ber. "
+        "Faqat raqam emas, qisqa tushuntirish ham qo'sh."
+    )
+
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = await asyncio.to_thread(model.generate_content, prompt)
+        text = response.text
+
+        # Extract number using regex
+        match = re.search(r"(\d+)%", text)
+        if match:
+            prob = int(match.group(1))
+            return prob, text
+
+        # Try finding a decimal or just a number if % is missing but clearly intended
+        match = re.search(r"(\d+(\.\d+)?)", text)
+        if match:
+            prob = float(match.group(1))
+            if 0 <= prob <= 100:
+                return prob, text
+
+        return None, text
+    except Exception as e:
+        logging.error(f"Gemini error: {e}")
+        return None, str(e)
 
 # ─── POLYMARKET HELPERS ──────────────────────────────────────────────────────
 
@@ -47,28 +94,91 @@ def parse_json_field(field):
     return field
 
 def fetch_markets():
+    # We'll fetch more markets to ensure we find Economic/Fed ones
     url = (f"https://gamma-api.polymarket.com/markets"
-           f"?active=true&closed=false&limit={state['limit']}")
+           f"?active=true&closed=false&limit=1000")
     try:
         r = requests.get(url, timeout=15)
         r.raise_for_status()
         return r.json()
-    except Exception:
+    except Exception as e:
+        logging.error(f"Fetch error: {e}")
         return []
 
-def filter_markets(markets):
+async def filter_and_evaluate_markets(markets):
     filtered = []
-    for m in markets:
+    now = datetime.now(timezone.utc)
+
+    # Sort markets by endDate for "Ending Soon"
+    sorted_markets = sorted(
+        [m for m in markets if m.get('endDate')],
+        key=lambda x: x.get('endDate')
+    )
+
+    for m in sorted_markets:
         try:
+            question = m.get('question', '')
+            description = m.get('description', '')
+
+            # 1. Filter by "Economic" or "Fed"
+            is_target = any(word in (question + description).lower() for word in ["economic", "fed", "fomc", "inflation", "gdp"])
+            if not is_target:
+                continue
+
+            # 2. Filter by Liquidity >= $50,000
+            liquidity = float(m.get('liquidity', 0))
+            if liquidity < 50000:
+                continue
+
+            # 3. Filter by Duration 1-30 days
+            end_date_str = m.get('endDate', '')
+            if not end_date_str:
+                continue
+
+            ed = datetime.strptime(end_date_str[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+            diff = ed - now
+            days_to_end = diff.total_seconds() / 86400
+            if not (0 <= days_to_end <= 30):
+                continue
+
+            # 4. Filter by Price 82-88c or lower
             outcomes = parse_json_field(m.get('outcomes'))
             prices   = parse_json_field(m.get('outcomePrices'))
-            if not outcomes or not prices:
+            if not outcomes or not prices or len(outcomes) != 2:
                 continue
-            if len(outcomes) == 2 and outcomes[0] == "Yes" and outcomes[1] == "No":
-                yes_p = float(prices[0])
-                no_p  = float(prices[1])
-                if (state['yes_min'] <= yes_p <= state['yes_max'] and
-                        state['no_min'] <= no_p <= state['no_max']):
+
+            yes_p = float(prices[0])
+            no_p  = float(prices[1])
+
+            # User said "Narx 82–88¢ oralig'ida (yoki pastroq)".
+            # Usually this refers to the outcome price we are interested in.
+            # If we are looking for positive EV, we should check both Yes and No?
+            # Or usually "Yes" if it's a binary bet. Let's check both if they meet price criteria.
+
+            targets = []
+            if yes_p <= 0.88: # Covers 82-88 and lower
+                targets.append(("Yes", yes_p))
+            if no_p <= 0.88:
+                targets.append(("No", no_p))
+
+            if not targets:
+                continue
+
+            # 5. Gemini Assessment & EV Calculation
+            # We only evaluate if it passed previous filters to save API calls
+            gemini_prob, gemini_text = await get_gemini_probability(question, description, end_date_str)
+
+            if gemini_prob is None:
+                continue
+
+            for side, price in targets:
+                # EV = (True Prob * 1.0) - Price
+                # If True Prob is for "Yes", then for "No" it is (100 - True Prob)
+                true_prob = gemini_prob / 100.0 if side == "Yes" else (100 - gemini_prob) / 100.0
+
+                ev = (true_prob - price) / price * 100 if price > 0 else 0
+
+                if ev >= 5:
                     slug = m.get('slug') or ''
                     gs = m.get('groupSlug') or ''
                     if gs:
@@ -78,55 +188,50 @@ def filter_markets(markets):
                     else:
                         murl = f"https://polymarket.com/?conditionId={m.get('conditionId', '')}"
 
-                    end_date_str = m.get('endDate', '')
-                    
-                    if state['time_filter'] != "all" and end_date_str:
-                        try:
-                            ed = datetime.strptime(end_date_str[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
-                            now = datetime.now(timezone.utc)
-                            if state['time_filter'] == "day" and ed > now + timedelta(days=1):
-                                continue
-                            elif state['time_filter'] == "week" and ed > now + timedelta(days=7):
-                                continue
-                        except Exception:
-                            pass
-
                     filtered.append({
-                        'question': m.get('question', 'Nomsiz'),
-                        'yes': yes_p,
-                        'no':  no_p,
+                        'question': question,
+                        'side': side,
+                        'price': price,
+                        'true_prob': true_prob * 100,
+                        'ev': ev,
+                        'gemini_explanation': gemini_text,
                         'url': murl,
-                        'endDate': end_date_str
+                        'endDate': end_date_str,
+                        'liquidity': liquidity
                     })
-        except (ValueError, TypeError, IndexError):
+                    # Found a good EV on this market, can move to next market
+                    break
+
+        except (ValueError, TypeError, IndexError) as e:
+            logging.error(f"Filter error: {e}")
             continue
+
     return filtered
 
-def build_message(markets, title="🟢 Polymarket Yangi Savdolar"):
+def build_message(markets, title="🟢 Positive EV Opportunity"):
     ts = time.strftime('%Y-%m-%d %H:%M:%S')
     lines = [
         f"<b>{title}</b>",
         f"📅 {ts}",
-        f"🔍 Yes {state['yes_min']*100:.0f}-{state['yes_max']*100:.0f}%"
-        f" | No {state['no_min']*100:.0f}-{state['no_max']*100:.0f}%",
-        f"⏳ Davr filtri: <b>{state['time_filter'].upper()}</b>",
-        f"📊 Savdolar: <b>{len(markets)}</b>",
+        f"📊 Topildi: <b>{len(markets)}</b>",
         "",
     ]
     for i, m in enumerate(markets, 1):
         end_date = m.get('endDate', '')
         if end_date and len(end_date) >= 16:
             end_str = f"⏳ Tugaydi: {end_date[:10]} {end_date[11:16]} (UTC)"
-        elif end_date:
-            end_str = f"⏳ Tugaydi: {end_date}"
         else:
-            end_str = f"⏳ Tugaydi: Noma'lum"
+            end_str = f"⏳ Tugaydi: {end_date or 'Noma\'lum'}"
 
         lines.append(
             f"{i}. <b>{m['question']}</b>\n"
             f"   {end_str}\n"
-            f"   ✅ Yes: {m['yes']*100:.1f}%  ❌ No: {m['no']*100:.1f}%\n"
-            f"   🔗 <a href=\"{m['url']}\">Polymarket'da ko'rish</a>"
+            f"   💰 Narx: <b>{m['side']} @ {m['price']:.2f}</b>\n"
+            f"   🤖 Gemini Bahosi: <b>{m['true_prob']:.1f}%</b>\n"
+            f"   📈 EV: <b>+{m['ev']:.1f}%</b>\n"
+            f"   💧 Liquidity: ${m['liquidity']:,.0f}\n"
+            f"   📝 Izoh: <i>{m['gemini_explanation'][:200]}...</i>\n"
+            f"   🔗 <a href=\"{m['url']}\">Polymarket'da ko'rish</a>\n"
         )
     return "\n".join(lines)
 
@@ -147,13 +252,13 @@ async def monitor_loop(app):
     while True:
         if state["running"]:
             markets  = fetch_markets()
-            filtered = filter_markets(markets)
+            filtered = await filter_and_evaluate_markets(markets)
             state["last_update"] = time.strftime('%H:%M:%S')
             state["last_count"]  = len(filtered)
 
-            new_markets = [m for m in filtered if m['url'] not in state["seen_urls"]]
+            new_markets = [m for m in filtered if f"{m['url']}_{m['side']}" not in state["seen_urls"]]
             if new_markets:
-                state["seen_urls"].update(m['url'] for m in new_markets)
+                state["seen_urls"].update(f"{m['url']}_{m['side']}" for m in new_markets)
                 msg = build_message(new_markets)
                 await send_tg(app, msg)
 
@@ -173,17 +278,7 @@ def main_keyboard():
         ],
         [
             InlineKeyboardButton("⏱ Interval o'zgartirish", callback_data="set_interval"),
-        ],
-        [
-            InlineKeyboardButton("📈 Yes filtri",  callback_data="set_yes"),
-            InlineKeyboardButton("📉 No filtri",   callback_data="set_no"),
-        ],
-        [
-            InlineKeyboardButton("📅 Davr filtri", callback_data="set_time"),
             InlineKeyboardButton("🔄 Tozalash", callback_data="clear_seen"),
-        ],
-        [
-            InlineKeyboardButton("📋 Filtrlarni ko'rish", callback_data="show_filters"),
         ],
     ])
 
@@ -275,19 +370,24 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     elif data == "status":
         mon_status = "🟢 Ishlamoqda" if state["running"] else "🔴 To'xtatilgan"
+        gemini_status = "✅ Sozlangan" if GEMINI_KEY else "❌ Kalit yo'q"
         text = (
-            f"📊 <b>Status</b>\n\n"
+            f"📊 <b>EV Bot Status</b>\n\n"
             f"Holat:        {mon_status}\n"
+            f"Gemini:       {gemini_status}\n"
             f"Interval:     {state['interval']} soniya\n"
-            f"Limit:        {state['limit']} savdo\n"
-            f"Yes filtr:    {state['yes_min']*100:.0f}% \u2013 {state['yes_max']*100:.0f}%\n"
-            f"No filtr:     {state['no_min']*100:.0f}% \u2013 {state['no_max']*100:.0f}%\n"
+            f"Filtrlar:\n"
+            f" - Bo'lim: Economic/Fed\n"
+            f" - Likvidlik: >= $50,000\n"
+            f" - Muddat: 1-30 kun\n"
+            f" - Narx: <= 88¢\n"
+            f" - EV: >= +5%\n"
         )
         last_upd = state['last_update'] or "hali yo'q"
         text += (
-            f"Oxirgi skan:  {last_upd}\n"
-            f"Topilgan:     {state['last_count']} ta savdo\n"
-            f"Ko'rilgan:    {len(state['seen_urls'])} ta URL"
+            f"\nOxirgi skan:  {last_upd}\n"
+            f"Topilgan EV:  {state['last_count']} ta\n"
+            f"Ko'rilgan:    {len(state['seen_urls'])} ta"
         )
         await q.edit_message_text(text, parse_mode="HTML",
                                   reply_markup=main_keyboard())
@@ -295,7 +395,7 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "scan_now":
         await q.edit_message_text("🔍 Skanirlanmoqda...", parse_mode="HTML")
         markets  = fetch_markets()
-        filtered = filter_markets(markets)
+        filtered = await filter_and_evaluate_markets(markets)
         state["last_update"] = time.strftime('%H:%M:%S')
         state["last_count"]  = len(filtered)
         if filtered:
