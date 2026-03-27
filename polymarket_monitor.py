@@ -22,8 +22,8 @@ logging.basicConfig(level=logging.WARNING)
 load_dotenv()
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
-BOT_TOKEN  = os.getenv("BOT_TOKEN", "7256069971:AAHNTBZZipJI9mF1K1lRyNiQb2n7qEEDEDY")
-CHAT_ID    = int(os.getenv("CHAT_ID", 798283148))
+BOT_TOKEN  = os.getenv("BOT_TOKEN", "")
+CHAT_ID    = int(os.getenv("CHAT_ID", "0"))
 GEMINI_KEY = os.getenv("GEMINI_API_KEY", "")
 
 if GEMINI_KEY:
@@ -104,6 +104,52 @@ def fetch_markets():
     except Exception as e:
         logging.error(f"Fetch error: {e}")
         return []
+
+def filter_general_markets(markets):
+    filtered = []
+    for m in markets:
+        try:
+            outcomes = parse_json_field(m.get('outcomes'))
+            prices   = parse_json_field(m.get('outcomePrices'))
+            if not outcomes or not prices:
+                continue
+            if len(outcomes) == 2 and outcomes[0] == "Yes" and outcomes[1] == "No":
+                yes_p = float(prices[0])
+                no_p  = float(prices[1])
+                if (state['yes_min'] <= yes_p <= state['yes_max'] and
+                        state['no_min'] <= no_p <= state['no_max']):
+                    slug = m.get('slug') or ''
+                    gs = m.get('groupSlug') or ''
+                    if gs:
+                        murl = f"https://polymarket.com/event/{gs}"
+                    elif slug:
+                        murl = f"https://polymarket.com/market/{slug}"
+                    else:
+                        murl = f"https://polymarket.com/?conditionId={m.get('conditionId', '')}"
+
+                    end_date_str = m.get('endDate', '')
+
+                    if state['time_filter'] != "all" and end_date_str:
+                        try:
+                            ed = datetime.strptime(end_date_str[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+                            now = datetime.now(timezone.utc)
+                            if state['time_filter'] == "day" and ed > now + timedelta(days=1):
+                                continue
+                            elif state['time_filter'] == "week" and ed > now + timedelta(days=7):
+                                continue
+                        except Exception:
+                            pass
+
+                    filtered.append({
+                        'question': m.get('question', 'Nomsiz'),
+                        'yes': yes_p,
+                        'no':  no_p,
+                        'url': murl,
+                        'endDate': end_date_str
+                    })
+        except (ValueError, TypeError, IndexError):
+            continue
+    return filtered
 
 async def filter_and_evaluate_markets(markets):
     filtered = []
@@ -208,6 +254,34 @@ async def filter_and_evaluate_markets(markets):
 
     return filtered
 
+def build_general_message(markets, title="🟢 Polymarket Yangi Savdolar"):
+    ts = time.strftime('%Y-%m-%d %H:%M:%S')
+    lines = [
+        f"<b>{title}</b>",
+        f"📅 {ts}",
+        f"🔍 Yes {state['yes_min']*100:.0f}-{state['yes_max']*100:.0f}%"
+        f" | No {state['no_min']*100:.0f}-{state['no_max']*100:.0f}%",
+        f"⏳ Davr filtri: <b>{state['time_filter'].upper()}</b>",
+        f"📊 Savdolar: <b>{len(markets)}</b>",
+        "",
+    ]
+    for i, m in enumerate(markets, 1):
+        end_date = m.get('endDate', '')
+        if end_date and len(end_date) >= 16:
+            end_str = f"⏳ Tugaydi: {end_date[:10]} {end_date[11:16]} (UTC)"
+        elif end_date:
+            end_str = f"⏳ Tugaydi: {end_date}"
+        else:
+            end_str = f"⏳ Tugaydi: Noma'lum"
+
+        lines.append(
+            f"{i}. <b>{m['question']}</b>\n"
+            f"   {end_str}\n"
+            f"   ✅ Yes: {m['yes']*100:.1f}%  ❌ No: {m['no']*100:.1f}%\n"
+            f"   🔗 <a href=\"{m['url']}\">Polymarket'da ko'rish</a>"
+        )
+    return "\n".join(lines)
+
 def build_message(markets, title="🟢 Positive EV Opportunity"):
     ts = time.strftime('%Y-%m-%d %H:%M:%S')
     lines = [
@@ -252,14 +326,24 @@ async def monitor_loop(app):
     while True:
         if state["running"]:
             markets  = fetch_markets()
-            filtered = await filter_and_evaluate_markets(markets)
-            state["last_update"] = time.strftime('%H:%M:%S')
-            state["last_count"]  = len(filtered)
 
-            new_markets = [m for m in filtered if f"{m['url']}_{m['side']}" not in state["seen_urls"]]
-            if new_markets:
-                state["seen_urls"].update(f"{m['url']}_{m['side']}" for m in new_markets)
-                msg = build_message(new_markets)
+            # 1. General market monitoring
+            general_filtered = filter_general_markets(markets)
+            new_general = [m for m in general_filtered if m['url'] not in state["seen_urls"]]
+            if new_general:
+                state["seen_urls"].update(m['url'] for m in new_general)
+                msg = build_general_message(new_general)
+                await send_tg(app, msg)
+
+            # 2. EV assessment
+            ev_filtered = await filter_and_evaluate_markets(markets)
+            state["last_update"] = time.strftime('%H:%M:%S')
+            state["last_count"]  = len(ev_filtered)
+
+            new_ev = [m for m in ev_filtered if f"ev_{m['url']}_{m['side']}" not in state["seen_urls"]]
+            if new_ev:
+                state["seen_urls"].update(f"ev_{m['url']}_{m['side']}" for m in new_ev)
+                msg = build_message(new_ev)
                 await send_tg(app, msg)
 
         await asyncio.sleep(state["interval"])
@@ -278,7 +362,17 @@ def main_keyboard():
         ],
         [
             InlineKeyboardButton("⏱ Interval o'zgartirish", callback_data="set_interval"),
+        ],
+        [
+            InlineKeyboardButton("📈 Yes filtri",  callback_data="set_yes"),
+            InlineKeyboardButton("📉 No filtri",   callback_data="set_no"),
+        ],
+        [
+            InlineKeyboardButton("📅 Davr filtri", callback_data="set_time"),
             InlineKeyboardButton("🔄 Tozalash", callback_data="clear_seen"),
+        ],
+        [
+            InlineKeyboardButton("📋 Filtrlarni ko'rish", callback_data="show_filters"),
         ],
     ])
 
@@ -372,21 +466,18 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         mon_status = "🟢 Ishlamoqda" if state["running"] else "🔴 To'xtatilgan"
         gemini_status = "✅ Sozlangan" if GEMINI_KEY else "❌ Kalit yo'q"
         text = (
-            f"📊 <b>EV Bot Status</b>\n\n"
+            f"📊 <b>Bot Status</b>\n\n"
             f"Holat:        {mon_status}\n"
             f"Gemini:       {gemini_status}\n"
             f"Interval:     {state['interval']} soniya\n"
-            f"Filtrlar:\n"
-            f" - Bo'lim: Economic/Fed\n"
-            f" - Likvidlik: >= $50,000\n"
-            f" - Muddat: 1-30 kun\n"
-            f" - Narx: <= 88¢\n"
-            f" - EV: >= +5%\n"
+            f"Yes filtr:    {state['yes_min']*100:.0f}% – {state['yes_max']*100:.0f}%\n"
+            f"No filtr:     {state['no_min']*100:.0f}% – {state['no_max']*100:.0f}%\n"
+            f"EV Filtr:     Economic/Fed, >$50k Liq, EV>5%\n"
         )
         last_upd = state['last_update'] or "hali yo'q"
         text += (
             f"\nOxirgi skan:  {last_upd}\n"
-            f"Topilgan EV:  {state['last_count']} ta\n"
+            f"EV topilgan:  {state['last_count']} ta\n"
             f"Ko'rilgan:    {len(state['seen_urls'])} ta"
         )
         await q.edit_message_text(text, parse_mode="HTML",
@@ -395,14 +486,25 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "scan_now":
         await q.edit_message_text("🔍 Skanirlanmoqda...", parse_mode="HTML")
         markets  = fetch_markets()
-        filtered = await filter_and_evaluate_markets(markets)
-        state["last_update"] = time.strftime('%H:%M:%S')
-        state["last_count"]  = len(filtered)
-        if filtered:
-            msg = build_message(filtered, title="🔍 Qo'lda Skanir Natijalari")
+
+        # General scan
+        gen_filtered = filter_general_markets(markets)
+        if gen_filtered:
+            msg = build_general_message(gen_filtered, title="🔍 Qo'lda Skanir (Umumiy)")
             await send_tg(ctx.application, msg)
+
+        # EV scan
+        ev_filtered = await filter_and_evaluate_markets(markets)
+        state["last_update"] = time.strftime('%H:%M:%S')
+        state["last_count"]  = len(ev_filtered)
+        if ev_filtered:
+            msg = build_message(ev_filtered, title="🔍 Qo'lda Skanir (EV)")
+            await send_tg(ctx.application, msg)
+
+        total = len(gen_filtered) + len(ev_filtered)
+        if total > 0:
             await q.edit_message_text(
-                f"✅ {len(filtered)} ta savdo topildi va yuborildi.",
+                f"✅ {total} ta savdo topildi va yuborildi.",
                 parse_mode="HTML", reply_markup=main_keyboard())
         else:
             await q.edit_message_text(
