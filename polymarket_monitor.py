@@ -10,6 +10,10 @@ import time
 import threading
 import html
 from datetime import datetime, timedelta, timezone
+from weather_utils import (
+    get_coordinates, fetch_weather_forecast,
+    calculate_weather_probability, parse_weather_market
+)
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -36,6 +40,7 @@ state = {
     "last_update": None,
     "last_count": 0,
     "trending_enabled": True,
+    "weather_model": "ecmwf",
     "min_volume_24h": 5000.0,
     "active_categories": ["Geopolitics", "Finance", "Iran", "Politics", "Sports", "Economy", "Elections", "Weather", "Mentions", "Crypto"],
     "seen_trending_urls": set(),
@@ -253,12 +258,107 @@ async def send_tg(app, text):
 
 # ─── MONITORING LOOP ─────────────────────────────────────────────────────────
 
+async def process_weather_market(m):
+    """
+    Checks if a market is a weather market and performs forecast analysis.
+    """
+    question = m.get('question', '')
+    parsed = parse_weather_market(question)
+    if not parsed["is_weather"]:
+        return None
+
+    coords = get_coordinates(parsed["city"])
+    if not coords:
+        return None
+
+    lat, lon, cc = coords
+    target_date = parsed["target_date"]
+    if not target_date:
+        # Fallback to market end date
+        end_date_str = m.get('endDate', '')
+        if end_date_str:
+            try:
+                target_date = datetime.strptime(end_date_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            except:
+                target_date = datetime.now(timezone.utc)
+        else:
+            target_date = datetime.now(timezone.utc)
+
+    forecast = fetch_weather_forecast(lat, lon, target_date, parsed["type"], model=state["weather_model"])
+    if not forecast:
+        return None
+
+    prob = calculate_weather_probability(parsed, forecast)
+
+    # Get market price
+    prices = parse_json_field(m.get('outcomePrices'))
+    if not prices or len(prices) < 2:
+        return None
+
+    yes_price = float(prices[0])
+    edge = prob - yes_price
+
+    murl = ""
+    slug = m.get('slug') or ''
+    gs = m.get('groupSlug') or ''
+    if gs: murl = f"https://polymarket.com/event/{gs}"
+    elif slug: murl = f"https://polymarket.com/market/{slug}"
+
+    return {
+        "question": question,
+        "city": parsed["city"],
+        "yes_price": yes_price,
+        "model_prob": prob,
+        "edge": edge,
+        "url": murl,
+        "type": parsed["type"]
+    }
+
+def build_weather_message(results):
+    lines = ["🌦 <b>Ob-Havo Tahlili</b>\n"]
+    for r in results:
+        recommendation = "✅ BUY YES" if r['edge'] > 0.1 else ("❌ BUY NO" if r['edge'] < -0.1 else "◽ SKIP")
+
+        lines.append(
+            f"📍 {r['city'].capitalize()} {r['type'].capitalize()} Market\n"
+            f"YES price: {r['yes_price']:.2f}\n"
+            f"Model: {r['model_prob']:.2f}\n"
+            f"Edge: {r['edge']:+.2f}\n\n"
+            f"👉 <b>{recommendation}</b>\n"
+            f"🔗 <a href=\"{r['url']}\">Polymarket</a>\n"
+            f"──────────────────"
+        )
+    return "\n".join(lines)
+
 async def monitor_loop(app):
     while True:
         if state["running"]:
             markets  = fetch_markets()
 
-            # Standart filtr
+            # 1. Ob-havo tahlili
+            weather_results = []
+            weather_urls_processed = set()
+            for m in markets:
+                slug = m.get('slug') or ''
+                gs = m.get('groupSlug') or ''
+                murl = ""
+                if gs: murl = f"https://polymarket.com/event/{gs}"
+                elif slug: murl = f"https://polymarket.com/market/{slug}"
+
+                if not murl or murl in state["seen_urls"]:
+                    continue
+
+                res = await process_weather_market(m)
+                if res:
+                    weather_results.append(res)
+                    weather_urls_processed.add(murl)
+
+            if weather_results:
+                state["seen_urls"].update(weather_urls_processed)
+                msg_w = build_weather_message(weather_results)
+                await send_tg(app, msg_w)
+
+            # 2. Standart filtr
             filtered = filter_markets(markets)
             state["last_update"] = time.strftime('%H:%M:%S')
             state["last_count"]  = len(filtered)
@@ -269,7 +369,7 @@ async def monitor_loop(app):
                 msg = build_message(new_markets)
                 await send_tg(app, msg)
 
-            # Trending filtr
+            # 3. Trending filtr
             trending = filter_trending_markets(markets)
             trending_to_alert = []
             for m in trending:
@@ -305,6 +405,7 @@ def main_keyboard():
         ],
         [
             InlineKeyboardButton("🔥 Trending/Kategoriyalar", callback_data="trending_menu"),
+            InlineKeyboardButton("🌦 Ob-havo", callback_data="weather_menu"),
         ],
         [
             InlineKeyboardButton("⏱ Interval o'zgartirish", callback_data="set_interval"),
@@ -419,6 +520,22 @@ def volume_keyboard():
     if row:
         rows.append(row)
     rows.append([InlineKeyboardButton("◀️ Orqaga", callback_data="trending_menu")])
+    return InlineKeyboardMarkup(rows)
+
+def weather_keyboard():
+    rows = [
+        [InlineKeyboardButton(f"Model: {state['weather_model'].upper()}", callback_data="set_weather_model")],
+        [InlineKeyboardButton("◀️ Orqaga", callback_data="back")]
+    ]
+    return InlineKeyboardMarkup(rows)
+
+def weather_model_keyboard():
+    rows = [
+        [InlineKeyboardButton("ECMWF (Eng aniq)", callback_data="wmodel_ecmwf")],
+        [InlineKeyboardButton("GFS (Tezkor)", callback_data="wmodel_gfs")],
+        [InlineKeyboardButton("Ensemble (Stabil)", callback_data="wmodel_ensemble")],
+        [InlineKeyboardButton("◀️ Orqaga", callback_data="weather_menu")]
+    ]
     return InlineKeyboardMarkup(rows)
 
 # ─── HANDLERS ────────────────────────────────────────────────────────────────
@@ -594,6 +711,25 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "📂 <b>Kuzatiladigan kategoriyalarni tanlang:</b>",
             parse_mode="HTML", reply_markup=categories_keyboard())
 
+    elif data == "weather_menu":
+        await q.edit_message_text(
+            "🌦 <b>Ob-havo Tahlili Sozlamalari</b>\n\n"
+            "Bot avtomatik ravishda ob-havo bozorlarini aniqlaydi va "
+            "Open-Meteo orqali tahlil qiladi.",
+            parse_mode="HTML", reply_markup=weather_keyboard())
+
+    elif data == "set_weather_model":
+        await q.edit_message_text(
+            "🌦 <b>Ob-havo modelini tanlang:</b>",
+            parse_mode="HTML", reply_markup=weather_model_keyboard())
+
+    elif data.startswith("wmodel_"):
+        model = data.replace("wmodel_", "")
+        state["weather_model"] = model
+        await q.edit_message_text(
+            f"✅ Ob-havo modeli <b>{model.upper()}</b> ga o'zgartirildi.",
+            parse_mode="HTML", reply_markup=weather_keyboard())
+
     elif data == "show_filters":
         trending_s = "✅ YOQILGAN" if state["trending_enabled"] else "❌ O'CHIRILGAN"
         text = (
@@ -605,7 +741,8 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"📦 Limit: {state['limit']} savdo\n\n"
             f"🔥 Trending: {trending_s}\n"
             f"💰 Min Hajm: ${state['min_volume_24h']:,}\n"
-            f"📂 Kategoriyalar: {', '.join(state['active_categories']) if state['active_categories'] else 'Yoq'}"
+            f"📂 Kategoriyalar: {', '.join(state['active_categories']) if state['active_categories'] else 'Yoq'}\n"
+            f"🌦 Ob-havo modeli: {state['weather_model'].upper()}"
         )
         await q.edit_message_text(text, parse_mode="HTML",
                                   reply_markup=main_keyboard())
