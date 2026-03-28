@@ -8,6 +8,7 @@ import requests
 import json
 import time
 import threading
+import html
 from datetime import datetime, timedelta, timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -34,6 +35,24 @@ state = {
     "seen_urls": set(),
     "last_update": None,
     "last_count": 0,
+    "trending_enabled": True,
+    "min_volume_24h": 5000.0,
+    "active_categories": ["Geopolitics", "Finance", "Iran", "Politics", "Sports", "Economy", "Elections", "Weather", "Mentions", "Crypto"],
+    "seen_trending_urls": set(),
+    "trending_volumes": {}, # url -> last_alert_vol
+}
+
+CATEGORY_KEYWORDS = {
+    "Geopolitics": ["war", "conflict", "nato", "russia", "china", "ukraine", "israel", "palestine", "middle east", "geopolitics"],
+    "Finance": ["stock", "market", "nasdaq", "dow jones", "s&p", "bank", "interest rate", "inflation", "recession", "finance"],
+    "Iran": ["iran", "tehran", "khamenei", "raisi", "irgc"],
+    "Politics": ["election", "biden", "trump", "senate", "house", "republican", "democrat", "government", "policy", "politics"],
+    "Sports": ["nba", "nfl", "mlb", "soccer", "football", "tennis", "olympics", "ufc", "boxing", "sports"],
+    "Economy": ["gdp", "unemployment", "cpi", "fed", "fomc", "economy", "economic"],
+    "Elections": ["vote", "poll", "primary", "candidate", "elections"],
+    "Weather": ["hurricane", "storm", "temperature", "climate", "snow", "rain", "weather"],
+    "Mentions": ["tweet", "post", "says", "mention", "truth social", "x.com", "mentions"],
+    "Crypto": ["bitcoin", "eth", "crypto", "binance", "coinbase", "solana", "doge", "token", "blockchain"]
 }
 
 # ─── POLYMARKET HELPERS ──────────────────────────────────────────────────────
@@ -55,6 +74,57 @@ def fetch_markets():
         return r.json()
     except Exception:
         return []
+
+def filter_trending_markets(markets):
+    filtered = []
+    if not state["trending_enabled"]:
+        return filtered
+
+    for m in markets:
+        try:
+            # Volume check
+            vol24 = float(m.get('volume24hr') or 0)
+            if vol24 < state["min_volume_24h"]:
+                continue
+
+            question = m.get('question', '').lower()
+            description = m.get('description', '').lower()
+
+            matched_category = None
+            for cat in state["active_categories"]:
+                keywords = CATEGORY_KEYWORDS.get(cat, [])
+                if any(kw in question or kw in description for kw in keywords):
+                    matched_category = cat
+                    break
+
+            if not matched_category:
+                continue
+
+            prices = parse_json_field(m.get('outcomePrices'))
+            outcomes = parse_json_field(m.get('outcomes'))
+            if not prices or not outcomes:
+                continue
+
+            slug = m.get('slug') or ''
+            gs = m.get('groupSlug') or ''
+            if gs:
+                murl = f"https://polymarket.com/event/{gs}"
+            elif slug:
+                murl = f"https://polymarket.com/market/{slug}"
+            else:
+                murl = f"https://polymarket.com/?conditionId={m.get('conditionId', '')}"
+
+            filtered.append({
+                'question': m.get('question', 'Nomsiz'),
+                'url': murl,
+                'category': matched_category,
+                'vol24': vol24,
+                'prices': prices,
+                'outcomes': outcomes
+            })
+        except Exception:
+            continue
+    return filtered
 
 def filter_markets(markets):
     filtered = []
@@ -102,6 +172,42 @@ def filter_markets(markets):
             continue
     return filtered
 
+def build_trending_message(markets):
+    ts = time.strftime('%Y-%m-%d %H:%M:%S')
+    lines = [
+        f"<b>🔥 Trending & Faol Savdolar</b>",
+        f"📅 {ts}",
+        f"📊 Minimal 24s hajm: <b>${state['min_volume_24h']:,}</b>",
+        f"🔍 Topildi: <b>{len(markets)}</b>",
+        "",
+    ]
+    for i, m in enumerate(markets, 1):
+        price_str = ""
+        try:
+            for idx, outcome in enumerate(m['outcomes']):
+                if idx < len(m['prices']):
+                    price_str += f" | {outcome}: {float(m['prices'][idx])*100:.1f}%"
+        except:
+            pass
+
+        safe_q = html.escape(m['question'])
+
+        status_tag = "🚀 YANGI"
+        if m.get('is_update'):
+            increase = m['vol24'] - m['prev_vol']
+            status_tag = f"📈 FAOL (+$ {increase:,.0f})"
+
+        entry = (
+            f"{i}. {status_tag} [{m['category']}] <b>{safe_q}</b>\n"
+            f"   💰 24s Hajm: <b>${m['vol24']:,.0f}</b>\n"
+            f"   📊 Narxlar: {price_str.lstrip(' | ')}\n"
+            f"   🔗 <a href=\"{m['url']}\">Polymarket'da ko'rish</a>\n\n"
+        )
+        if len("\n".join(lines) + entry) > 4000:
+            break
+        lines.append(entry)
+    return "\n".join(lines)
+
 def build_message(markets, title="🟢 Polymarket Yangi Savdolar"):
     ts = time.strftime('%Y-%m-%d %H:%M:%S')
     lines = [
@@ -122,12 +228,16 @@ def build_message(markets, title="🟢 Polymarket Yangi Savdolar"):
         else:
             end_str = f"⏳ Tugaydi: Noma'lum"
 
-        lines.append(
-            f"{i}. <b>{m['question']}</b>\n"
+        safe_q = html.escape(m['question'])
+        entry = (
+            f"{i}. <b>{safe_q}</b>\n"
             f"   {end_str}\n"
             f"   ✅ Yes: {m['yes']*100:.1f}%  ❌ No: {m['no']*100:.1f}%\n"
-            f"   🔗 <a href=\"{m['url']}\">Polymarket'da ko'rish</a>"
+            f"   🔗 <a href=\"{m['url']}\">Polymarket'da ko'rish</a>\n"
         )
+        if len("\n".join(lines) + entry) > 4000:
+            break
+        lines.append(entry)
     return "\n".join(lines)
 
 async def send_tg(app, text):
@@ -147,6 +257,8 @@ async def monitor_loop(app):
     while True:
         if state["running"]:
             markets  = fetch_markets()
+
+            # Standart filtr
             filtered = filter_markets(markets)
             state["last_update"] = time.strftime('%H:%M:%S')
             state["last_count"]  = len(filtered)
@@ -156,6 +268,26 @@ async def monitor_loop(app):
                 state["seen_urls"].update(m['url'] for m in new_markets)
                 msg = build_message(new_markets)
                 await send_tg(app, msg)
+
+            # Trending filtr
+            trending = filter_trending_markets(markets)
+            trending_to_alert = []
+            for m in trending:
+                url = m['url']
+                vol = m['vol24']
+                last_vol = state["trending_volumes"].get(url, 0)
+
+                # Alert if new OR volume increased by 50% AND at least $5,000 increase
+                if url not in state["seen_trending_urls"] or (vol > last_vol * 1.5 and vol > last_vol + 5000):
+                    m['is_update'] = url in state["seen_trending_urls"]
+                    m['prev_vol'] = last_vol
+                    trending_to_alert.append(m)
+                    state["seen_trending_urls"].add(url)
+                    state["trending_volumes"][url] = vol
+
+            if trending_to_alert:
+                msg_trending = build_trending_message(trending_to_alert)
+                await send_tg(app, msg_trending)
 
         await asyncio.sleep(state["interval"])
 
@@ -170,6 +302,9 @@ def main_keyboard():
         [
             InlineKeyboardButton("📊 Status",      callback_data="status"),
             InlineKeyboardButton("🔍 Hozir skanir", callback_data="scan_now"),
+        ],
+        [
+            InlineKeyboardButton("🔥 Trending/Kategoriyalar", callback_data="trending_menu"),
         ],
         [
             InlineKeyboardButton("⏱ Interval o'zgartirish", callback_data="set_interval"),
@@ -240,6 +375,52 @@ def no_keyboard():
     rows.append([InlineKeyboardButton("◀️ Orqaga", callback_data="back")])
     return InlineKeyboardMarkup(rows)
 
+def trending_keyboard():
+    status = "✅ YOQILGAN" if state["trending_enabled"] else "❌ O'CHIRILGAN"
+    rows = [
+        [InlineKeyboardButton(f"Trending: {status}", callback_data="toggle_trending")],
+        [InlineKeyboardButton("💰 Min Hajm (24s)", callback_data="set_min_vol")],
+        [InlineKeyboardButton("📂 Kategoriyalar", callback_data="categories_menu")],
+        [InlineKeyboardButton("◀️ Orqaga", callback_data="back")]
+    ]
+    return InlineKeyboardMarkup(rows)
+
+def categories_keyboard():
+    rows = []
+    # Display 2 categories per row
+    categories = list(CATEGORY_KEYWORDS.keys())
+    for i in range(0, len(categories), 2):
+        row = []
+        cat1 = categories[i]
+        mark1 = "✅" if cat1 in state["active_categories"] else "❌"
+        row.append(InlineKeyboardButton(f"{mark1} {cat1}", callback_data=f"toggle_cat_{cat1}"))
+
+        if i + 1 < len(categories):
+            cat2 = categories[i+1]
+            mark2 = "✅" if cat2 in state["active_categories"] else "❌"
+            row.append(InlineKeyboardButton(f"{mark2} {cat2}", callback_data=f"toggle_cat_{cat2}"))
+        rows.append(row)
+
+    rows.append([InlineKeyboardButton("◀️ Orqaga", callback_data="trending_menu")])
+    return InlineKeyboardMarkup(rows)
+
+def volume_keyboard():
+    volumes = [
+        ("$1k", 1000), ("$5k", 5000), ("$10k", 10000),
+        ("$25k", 25000), ("$50k", 50000), ("$100k", 100000),
+    ]
+    rows = []
+    row = []
+    for label, val in volumes:
+        row.append(InlineKeyboardButton(label, callback_data=f"vol_{val}"))
+        if len(row) == 3:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    rows.append([InlineKeyboardButton("◀️ Orqaga", callback_data="trending_menu")])
+    return InlineKeyboardMarkup(rows)
+
 # ─── HANDLERS ────────────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -262,6 +443,8 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data == "start_mon":
         state["running"] = True
         state["seen_urls"] = set()          # reset so alerts fire immediately
+        state["seen_trending_urls"] = set()
+        state["trending_volumes"] = {}
         await q.edit_message_text(
             "▶️ <b>Monitoring boshlandi!</b>\n"
             f"Har {state['interval']} soniyada skanirlanadi.",
@@ -361,19 +544,68 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     elif data == "clear_seen":
         count = len(state["seen_urls"])
+        count_t = len(state["seen_trending_urls"])
         state["seen_urls"] = set()
+        state["seen_trending_urls"] = set()
+        state["trending_volumes"] = {}
         await q.edit_message_text(
-            f"🔄 {count} ta ko'rilgan URL tozalandi. Keyingi skanda hammasi qayta yuboriladi.",
+            f"🔄 {count} ta oddiy va {count_t} ta trending URL tozalandi. "
+            "Keyingi skanda hammasi qayta yuboriladi.",
             parse_mode="HTML", reply_markup=main_keyboard())
 
+    elif data == "trending_menu":
+        await q.edit_message_text(
+            "🔥 <b>Trending & Kategoriyalar Sozlamalari</b>\n\n"
+            "Bu bo'limda siz tanlangan kategoriyalar bo'yicha "
+            "hajmi yuqori bo'lgan (tez va ko'p pul kirayotgan) "
+            "savdolarni kuzatishni sozlashingiz mumkin.",
+            parse_mode="HTML", reply_markup=trending_keyboard())
+
+    elif data == "toggle_trending":
+        state["trending_enabled"] = not state["trending_enabled"]
+        await q.edit_message_text(
+            "🔥 Trending sozlamalari:",
+            reply_markup=trending_keyboard())
+
+    elif data == "set_min_vol":
+        await q.edit_message_text(
+            f"💰 <b>Minimal 24s hajmni tanlang:</b>\n\nHozirgi: ${state['min_volume_24h']:,}",
+            parse_mode="HTML", reply_markup=volume_keyboard())
+
+    elif data.startswith("vol_"):
+        vol = float(data.split("_")[1])
+        state["min_volume_24h"] = vol
+        await q.edit_message_text(
+            f"✅ Minimal hajm <b>${vol:,}</b> ga o'rnatildi.",
+            parse_mode="HTML", reply_markup=trending_keyboard())
+
+    elif data == "categories_menu":
+        await q.edit_message_text(
+            "📂 <b>Kuzatiladigan kategoriyalarni tanlang:</b>",
+            parse_mode="HTML", reply_markup=categories_keyboard())
+
+    elif data.startswith("toggle_cat_"):
+        cat = data.replace("toggle_cat_", "")
+        if cat in state["active_categories"]:
+            state["active_categories"].remove(cat)
+        else:
+            state["active_categories"].append(cat)
+        await q.edit_message_text(
+            "📂 <b>Kuzatiladigan kategoriyalarni tanlang:</b>",
+            parse_mode="HTML", reply_markup=categories_keyboard())
+
     elif data == "show_filters":
+        trending_s = "✅ YOQILGAN" if state["trending_enabled"] else "❌ O'CHIRILGAN"
         text = (
             f"📋 <b>Hozirgi filtrlar</b>\n\n"
             f"✅ Yes:  {state['yes_min']*100:.0f}% – {state['yes_max']*100:.0f}%\n"
             f"❌ No:   {state['no_min']*100:.0f}% – {state['no_max']*100:.0f}%\n"
             f"📅 Davr:   {state['time_filter'].upper()}\n"
             f"⏱ Interval: {state['interval']} soniya\n"
-            f"📦 Limit: {state['limit']} savdo"
+            f"📦 Limit: {state['limit']} savdo\n\n"
+            f"🔥 Trending: {trending_s}\n"
+            f"💰 Min Hajm: ${state['min_volume_24h']:,}\n"
+            f"📂 Kategoriyalar: {', '.join(state['active_categories']) if state['active_categories'] else 'Yoq'}"
         )
         await q.edit_message_text(text, parse_mode="HTML",
                                   reply_markup=main_keyboard())
