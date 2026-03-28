@@ -21,8 +21,9 @@ from telegram.ext import (
 logging.basicConfig(level=logging.WARNING)
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
-BOT_TOKEN  = "7256069971:AAHNTBZZipJI9mF1K1lRyNiQb2n7qEEDEDY"
-CHAT_ID    = 798283148
+# Use environment variables if possible, or keep as is if user specifically requires
+BOT_TOKEN  = os.environ.get("BOT_TOKEN", "7256069971:AAHNTBZZipJI9mF1K1lRyNiQb2n7qEEDEDY")
+CHAT_ID    = int(os.environ.get("CHAT_ID", 798283148))
 GEOCODE_CACHE_FILE = "geocode_cache.json"
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -44,6 +45,8 @@ state = {
     "min_volume_24h": 5000.0,
     "active_categories": ["Geopolitics", "Finance", "Iran", "Politics", "Sports", "Economy", "Elections", "Weather", "Mentions", "Crypto"],
     "seen_trending_urls": set(),
+    "seen_arb_urls": set(),
+    "arb_threshold": 0.98,
     "trending_volumes": {}, # url -> last_alert_vol
 }
 
@@ -80,28 +83,27 @@ def save_geocode_cache(cache):
 
 geocode_cache = load_geocode_cache()
 
-async def get_coordinates(city_name):
+async def get_coordinates(client, city_name):
     city_name = city_name.strip().lower()
     if city_name in geocode_cache:
         return geocode_cache[city_name]
 
     url = f"https://geocoding-api.open-meteo.com/v1/search?name={city_name}&count=1&language=en&format=json"
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(url, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            if "results" in data and len(data["results"]) > 0:
-                result = data["results"][0]
-                coords = (result.get("latitude"), result.get("longitude"), result.get("country_code"))
-                geocode_cache[city_name] = coords
-                save_geocode_cache(geocode_cache)
-                return coords
-        except Exception as e:
-            logging.error(f"Geocoding error for {city_name}: {e}")
+    try:
+        response = await client.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        if "results" in data and len(data["results"]) > 0:
+            result = data["results"][0]
+            coords = (result.get("latitude"), result.get("longitude"), result.get("country_code"))
+            geocode_cache[city_name] = coords
+            save_geocode_cache(geocode_cache)
+            return coords
+    except Exception as e:
+        logging.error(f"Geocoding error for {city_name}: {e}")
     return None
 
-async def fetch_weather_forecast(lat, lon, date, weather_type, model="ecmwf"):
+async def fetch_weather_forecast(client, lat, lon, date, weather_type, model="ecmwf"):
     if not date:
         date = datetime.now(timezone.utc)
     date_str = date.strftime("%Y-%m-%d")
@@ -110,57 +112,72 @@ async def fetch_weather_forecast(lat, lon, date, weather_type, model="ecmwf"):
 
     base_url = "https://api.open-meteo.com/v1/forecast"
     params = {
-        "latitude": lat, "longitude": lon,
-        "start_date": date_str, "end_date": date_str,
+        "latitude": lat,
+        "longitude": lon,
+        "start_date": date_str,
+        "end_date": date_str,
         "models": api_model,
         "hourly": "temperature_2m,precipitation_probability,precipitation,wind_speed_10m"
     }
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(base_url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            hourly = data.get("hourly", {})
-            if not hourly: return None
-            return {
-                "temp": hourly.get("temperature_2m", []),
-                "precip_prob": hourly.get("precipitation_probability", []),
-                "precip": hourly.get("precipitation", []),
-                "wind": hourly.get("wind_speed_10m", []),
-                "model_used": api_model
-            }
-        except Exception as e:
-            logging.error(f"Weather fetch error: {e}")
+    try:
+        response = await client.get(base_url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        hourly = data.get("hourly", {})
+        if not hourly:
+            return None
+        return {
+            "temp": hourly.get("temperature_2m", []),
+            "precip_prob": hourly.get("precipitation_probability", []),
+            "precip": hourly.get("precipitation", []),
+            "wind": hourly.get("wind_speed_10m", []),
+            "model_used": api_model
+        }
+    except Exception as e:
+        logging.error(f"Weather fetch error: {e}")
     return None
 
 def calculate_weather_probability(parsed, forecast):
-    if not forecast: return 0.5
+    if not forecast:
+        return 0.5
     w_type = parsed["type"]
     threshold = parsed["threshold"]
 
     if w_type in ["rain", "snow"]:
         probs = forecast.get("precip_prob", [])
-        if not probs: return 0.5
+        if not probs:
+            return 0.5
         avg_prob = sum(probs) / len(probs)
-        if avg_prob > 60: return 0.8
-        if 30 <= avg_prob <= 60: return 0.5
+        if avg_prob > 60:
+            return 0.8
+        if 30 <= avg_prob <= 60:
+            return 0.5
         return 0.2
     elif w_type == "temperature":
         temps = forecast.get("temp", [])
-        if not temps: return 0.5
+        if not temps:
+            return 0.5
         diff = max(temps) - threshold
-        if diff >= 3: return 0.9
-        if 1 <= diff < 3: return 0.7
-        if -1 <= diff < 1: return 0.5
-        if -3 <= diff < -1: return 0.3
+        if diff >= 3:
+            return 0.9
+        if 1 <= diff < 3:
+            return 0.7
+        if -1 <= diff < 1:
+            return 0.5
+        if -3 <= diff < -1:
+            return 0.3
         return 0.1
     elif w_type == "wind":
         winds = forecast.get("wind", [])
-        if not winds: return 0.5
+        if not winds:
+            return 0.5
         diff = max(winds) - threshold
-        if diff >= 10: return 0.9
-        if 5 <= diff < 10: return 0.7
-        if -5 <= diff < 5: return 0.5
+        if diff >= 10:
+            return 0.9
+        if 5 <= diff < 10:
+            return 0.7
+        if -5 <= diff < 5:
+            return 0.5
         return 0.2
     return 0.5
 
@@ -185,7 +202,8 @@ def parse_weather_market(question):
         if " on " in result["city"].lower():
             parts = re.split(r" on ", result["city"], flags=re.I)
             result["city"] = parts[0].strip()
-            if not result["target_date"]: result["target_date"] = dateparser.parse(parts[1].strip(), settings={'PREFER_DATES_FROM': 'future'})
+            if not result["target_date"]:
+                result["target_date"] = dateparser.parse(parts[1].strip(), settings={'PREFER_DATES_FROM': 'future'})
         return result
 
     # Temperature
@@ -193,7 +211,8 @@ def parse_weather_market(question):
     if temp_match:
         result.update({"is_weather": True, "type": "temperature", "city": temp_match.group(1).strip(), "threshold": float(temp_match.group(2))})
         date_part = question[temp_match.end():].strip()
-        if date_part: result["target_date"] = dateparser.parse(date_part, settings={'PREFER_DATES_FROM': 'future'})
+        if date_part:
+            result["target_date"] = dateparser.parse(date_part, settings={'PREFER_DATES_FROM': 'future'})
         return result
 
     # Wind
@@ -201,7 +220,8 @@ def parse_weather_market(question):
     if wind_match:
         result.update({"is_weather": True, "type": "wind", "city": wind_match.group(1).strip(), "threshold": float(wind_match.group(2))})
         date_part = question[wind_match.end():].strip()
-        if date_part: result["target_date"] = dateparser.parse(date_part, settings={'PREFER_DATES_FROM': 'future'})
+        if date_part:
+            result["target_date"] = dateparser.parse(date_part, settings={'PREFER_DATES_FROM': 'future'})
         return result
 
     # Snow
@@ -221,7 +241,8 @@ def parse_weather_market(question):
         if " on " in result["city"].lower():
             parts = re.split(r" on ", result["city"], flags=re.I)
             result["city"] = parts[0].strip()
-            if not result["target_date"]: result["target_date"] = dateparser.parse(parts[1].strip(), settings={'PREFER_DATES_FROM': 'future'})
+            if not result["target_date"]:
+                result["target_date"] = dateparser.parse(parts[1].strip(), settings={'PREFER_DATES_FROM': 'future'})
         return result
 
     return result
@@ -236,16 +257,15 @@ def parse_json_field(field):
             return None
     return field
 
-async def fetch_markets():
-    url = (f"https://gamma-api.polymarket.com/markets"
-           f"?active=true&closed=false&limit={state['limit']}")
-    async with httpx.AsyncClient() as client:
-        try:
-            r = await client.get(url, timeout=15)
-            r.raise_for_status()
-            return r.json()
-        except Exception:
-            return []
+async def fetch_markets(client):
+    url = f"https://gamma-api.polymarket.com/markets?active=true&closed=false&limit={state['limit']}"
+    try:
+        r = await client.get(url, timeout=15)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        logging.error(f"Market fetch error: {e}")
+        return []
 
 def filter_trending_markets(markets):
     filtered = []
@@ -255,7 +275,8 @@ def filter_trending_markets(markets):
     for m in markets:
         try:
             vol24 = float(m.get('volume24hr') or 0)
-            if vol24 < state["min_volume_24h"]: continue
+            if vol24 < state["min_volume_24h"]:
+                continue
 
             question = m.get('question', '').lower()
             description = m.get('description', '').lower()
@@ -267,17 +288,22 @@ def filter_trending_markets(markets):
                     matched_category = cat
                     break
 
-            if not matched_category: continue
+            if not matched_category:
+                continue
 
             prices = parse_json_field(m.get('outcomePrices'))
             outcomes = parse_json_field(m.get('outcomes'))
-            if not prices or not outcomes: continue
+            if not prices or not outcomes:
+                continue
 
             slug = m.get('slug') or ''
             gs = m.get('groupSlug') or ''
-            if gs: murl = f"https://polymarket.com/event/{gs}"
-            elif slug: murl = f"https://polymarket.com/market/{slug}"
-            else: murl = f"https://polymarket.com/?conditionId={m.get('conditionId', '')}"
+            if gs:
+                murl = f"https://polymarket.com/event/{gs}"
+            elif slug:
+                murl = f"https://polymarket.com/market/{slug}"
+            else:
+                murl = f"https://polymarket.com/?conditionId={m.get('conditionId', '')}"
 
             filtered.append({'question': m.get('question', 'Nomsiz'), 'url': murl, 'category': matched_category, 'vol24': vol24, 'prices': prices, 'outcomes': outcomes})
         except Exception:
@@ -290,7 +316,8 @@ def filter_markets(markets):
         try:
             outcomes = parse_json_field(m.get('outcomes'))
             prices   = parse_json_field(m.get('outcomePrices'))
-            if not outcomes or not prices: continue
+            if not outcomes or not prices:
+                continue
             if len(outcomes) == 2 and outcomes[0] == "Yes" and outcomes[1] == "No":
                 yes_p = float(prices[0])
                 no_p  = float(prices[1])
@@ -298,21 +325,28 @@ def filter_markets(markets):
                         state['no_min'] <= no_p <= state['no_max']):
                     slug = m.get('slug') or ''
                     gs = m.get('groupSlug') or ''
-                    if gs: murl = f"https://polymarket.com/event/{gs}"
-                    elif slug: murl = f"https://polymarket.com/market/{slug}"
-                    else: murl = f"https://polymarket.com/?conditionId={m.get('conditionId', '')}"
+                    if gs:
+                        murl = f"https://polymarket.com/event/{gs}"
+                    elif slug:
+                        murl = f"https://polymarket.com/market/{slug}"
+                    else:
+                        murl = f"https://polymarket.com/?conditionId={m.get('conditionId', '')}"
 
                     end_date_str = m.get('endDate', '')
                     if state['time_filter'] != "all" and end_date_str:
                         try:
                             ed = datetime.strptime(end_date_str[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
                             now = datetime.now(timezone.utc)
-                            if state['time_filter'] == "day" and ed > now + timedelta(days=1): continue
-                            elif state['time_filter'] == "week" and ed > now + timedelta(days=7): continue
-                        except: pass
+                            if state['time_filter'] == "day" and ed > now + timedelta(days=1):
+                                continue
+                            elif state['time_filter'] == "week" and ed > now + timedelta(days=7):
+                                continue
+                        except Exception:
+                            pass
 
                     filtered.append({'question': m.get('question', 'Nomsiz'), 'yes': yes_p, 'no':  no_p, 'url': murl, 'endDate': end_date_str})
-        except: continue
+        except Exception:
+            continue
     return filtered
 
 def build_trending_message(markets):
@@ -322,8 +356,10 @@ def build_trending_message(markets):
         price_str = ""
         try:
             for idx, outcome in enumerate(m['outcomes']):
-                if idx < len(m['prices']): price_str += f" | {outcome}: {float(m['prices'][idx])*100:.1f}%"
-        except: pass
+                if idx < len(m['prices']):
+                    price_str += f" | {outcome}: {float(m['prices'][idx])*100:.1f}%"
+        except Exception:
+            pass
         safe_q = html.escape(m['question'])
         status_tag = "🚀 YANGI"
         if m.get('is_update'):
@@ -333,7 +369,8 @@ def build_trending_message(markets):
                  f"   💰 24s Hajm: <b>${m['vol24']:,.0f}</b>\n"
                  f"   📊 Narxlar: {price_str.lstrip(' | ')}\n"
                  f"   🔗 <a href=\"{m['url']}\">Polymarket'da ko'rish</a>\n\n")
-        if len("\n".join(lines) + entry) > 4000: break
+        if len("\n".join(lines) + entry) > 4000:
+            break
         lines.append(entry)
     return "\n".join(lines)
 
@@ -349,7 +386,8 @@ def build_message(markets, title="🟢 Polymarket Yangi Savdolar"):
                  f"   {end_str}\n"
                  f"   ✅ Yes: {m['yes']*100:.1f}%  ❌ No: {m['no']*100:.1f}%\n"
                  f"   🔗 <a href=\"{m['url']}\">Polymarket'da ko'rish</a>\n")
-        if len("\n".join(lines) + entry) > 4000: break
+        if len("\n".join(lines) + entry) > 4000:
+            break
         lines.append(entry)
     return "\n".join(lines)
 
@@ -361,26 +399,33 @@ async def send_tg(app, text):
 
 # ─── MONITORING LOOP ─────────────────────────────────────────────────────────
 
-async def process_weather_market(m):
+async def process_weather_market(client, m):
     question = m.get('question', '')
     parsed = parse_weather_market(question)
-    if not parsed["is_weather"]: return None
-    coords = await get_coordinates(parsed["city"])
-    if not coords: return None
+    if not parsed["is_weather"]:
+        return None
+    coords = await get_coordinates(client, parsed["city"])
+    if not coords:
+        return None
     lat, lon, cc = coords
     target_date = parsed["target_date"]
     if not target_date:
         end_date_str = m.get('endDate', '')
-        try: target_date = datetime.strptime(end_date_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc) if end_date_str else datetime.now(timezone.utc)
-        except: target_date = datetime.now(timezone.utc)
-    forecast = await fetch_weather_forecast(lat, lon, target_date, parsed["type"], model=state["weather_model"])
-    if not forecast: return None
+        try:
+            target_date = datetime.strptime(end_date_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc) if end_date_str else datetime.now(timezone.utc)
+        except Exception:
+            target_date = datetime.now(timezone.utc)
+    forecast = await fetch_weather_forecast(client, lat, lon, target_date, parsed["type"], model=state["weather_model"])
+    if not forecast:
+        return None
     prob = calculate_weather_probability(parsed, forecast)
     prices = parse_json_field(m.get('outcomePrices'))
-    if not prices or len(prices) < 2: return None
+    if not prices or len(prices) < 2:
+        return None
     yes_price = float(prices[0])
     edge = prob - yes_price
-    slug = m.get('slug') or ''; gs = m.get('groupSlug') or ''
+    slug = m.get('slug') or ''
+    gs = m.get('groupSlug') or ''
     murl = f"https://polymarket.com/event/{gs}" if gs else (f"https://polymarket.com/market/{slug}" if slug else "")
     return {"question": question, "city": parsed["city"], "yes_price": yes_price, "model_prob": prob, "edge": edge, "url": murl, "type": parsed["type"]}
 
@@ -397,39 +442,103 @@ def build_weather_message(results):
                      f"──────────────────")
     return "\n".join(lines)
 
-async def monitor_loop(app):
-    while True:
-        if state["running"]:
-            markets  = await fetch_markets()
-            weather_results = []; weather_urls_processed = set()
-            for m in markets:
-                slug = m.get('slug') or ''; gs = m.get('groupSlug') or ''
+def find_internal_arbitrage(markets):
+    opportunities = []
+    for m in markets:
+        try:
+            prices = parse_json_field(m.get('outcomePrices'))
+            outcomes = parse_json_field(m.get('outcomes'))
+            if not prices or len(prices) < 2:
+                continue
+            p_float = [float(p) for p in prices]
+            total_p = sum(p_float)
+            if 0.1 < total_p < state.get("arb_threshold", 0.98):
+                slug = m.get('slug') or ''
+                gs = m.get('groupSlug') or ''
                 murl = f"https://polymarket.com/event/{gs}" if gs else (f"https://polymarket.com/market/{slug}" if slug else "")
-                if not murl or murl in state["seen_urls"]: continue
-                res = await process_weather_market(m)
-                if res: weather_results.append(res); weather_urls_processed.add(murl)
-            if weather_results:
-                state["seen_urls"].update(weather_urls_processed)
-                await send_tg(app, build_weather_message(weather_results))
+                opportunities.append({
+                    "question": m.get('question'),
+                    "total_p": total_p,
+                    "prices": p_float,
+                    "outcomes": outcomes,
+                    "url": murl,
+                    "profit": (1.0 - total_p) * 100
+                })
+        except Exception:
+            continue
+    return opportunities
 
-            filtered = filter_markets(markets)
-            state["last_update"] = time.strftime('%H:%M:%S')
-            state["last_count"]  = len(filtered)
-            new_markets = [m for m in filtered if m['url'] not in state["seen_urls"]]
-            if new_markets:
-                state["seen_urls"].update(m['url'] for m in new_markets)
-                await send_tg(app, build_message(new_markets))
+def build_arbitrage_message(opportunities):
+    lines = ["⚖️ <b>Arbitraj Imkoniyati Topildi!</b>\n"]
+    for o in opportunities:
+        price_lines = ""
+        for i, outcome in enumerate(o['outcomes']):
+            if i < len(o['prices']):
+                price_lines += f"  • {outcome}: {o['prices'][i]:.3f}\n"
+        lines.append(f"<b>{o['question']}</b>\n"
+                     f"{price_lines}"
+                     f"💰 Jami narx: <b>{o['total_p']:.3f}</b>\n"
+                     f"📈 Taxminiy foyda: <b>{o['profit']:.1f}%</b>\n"
+                     f"🔗 <a href=\"{o['url']}\">Polymarket</a>\n"
+                     f"──────────────────")
+    return "\n".join(lines)
 
-            trending = filter_trending_markets(markets)
-            trending_to_alert = []
-            for m in trending:
-                url = m['url']; vol = m['vol24']; last_vol = state["trending_volumes"].get(url, 0)
-                if url not in state["seen_trending_urls"] or (vol > last_vol * 1.5 and vol > last_vol + 5000):
-                    m['is_update'] = url in state["seen_trending_urls"]; m['prev_vol'] = last_vol
-                    trending_to_alert.append(m); state["seen_trending_urls"].add(url); state["trending_volumes"][url] = vol
-            if trending_to_alert: await send_tg(app, build_trending_message(trending_to_alert))
+async def monitor_loop(app):
+    async with httpx.AsyncClient() as client:
+        while True:
+            if state["running"]:
+                markets  = await fetch_markets(client)
 
-        await asyncio.sleep(state["interval"])
+                # 1. Arbitraj qidirish
+                arbs = find_internal_arbitrage(markets)
+                new_arbs = [o for o in arbs if o['url'] not in state["seen_arb_urls"]]
+                if new_arbs:
+                    state["seen_arb_urls"].update(o['url'] for o in new_arbs)
+                    await send_tg(app, build_arbitrage_message(new_arbs))
+
+                # 2. Ob-havo tahlili
+                weather_results = []
+                weather_urls_processed = set()
+                for m in markets:
+                    slug = m.get('slug') or ''
+                    gs = m.get('groupSlug') or ''
+                    murl = f"https://polymarket.com/event/{gs}" if gs else (f"https://polymarket.com/market/{slug}" if slug else "")
+                    if not murl or murl in state["seen_urls"]:
+                        continue
+                    res = await process_weather_market(client, m)
+                    if res:
+                        weather_results.append(res)
+                        weather_urls_processed.add(murl)
+                if weather_results:
+                    state["seen_urls"].update(weather_urls_processed)
+                    await send_tg(app, build_weather_message(weather_results))
+
+                # 3. Standart filtr
+                filtered = filter_markets(markets)
+                state["last_update"] = time.strftime('%H:%M:%S')
+                state["last_count"]  = len(filtered)
+                new_markets = [m for m in filtered if m['url'] not in state["seen_urls"]]
+                if new_markets:
+                    state["seen_urls"].update(m['url'] for m in new_markets)
+                    await send_tg(app, build_message(new_markets))
+
+                # 4. Trending filtr
+                trending = filter_trending_markets(markets)
+                trending_to_alert = []
+                for m in trending:
+                    url = m['url']
+                    vol = m['vol24']
+                    last_vol = state["trending_volumes"].get(url, 0)
+                    if url not in state["seen_trending_urls"] or (vol > last_vol * 1.5 and vol > last_vol + 5000):
+                        m['is_update'] = url in state["seen_trending_urls"]
+                        m['prev_vol'] = last_vol
+                        trending_to_alert.append(m)
+                        state["seen_trending_urls"].add(url)
+                        state["trending_volumes"][url] = vol
+                if trending_to_alert:
+                    await send_tg(app, build_trending_message(trending_to_alert))
+
+            await asyncio.sleep(state["interval"])
 
 # ─── KEYBOARDS ───────────────────────────────────────────────────────────────
 
@@ -437,7 +546,7 @@ def main_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("▶️ Boshlash",  callback_data="start_mon"), InlineKeyboardButton("⏹ To'xtatish", callback_data="stop_mon")],
         [InlineKeyboardButton("📊 Status",      callback_data="status"), InlineKeyboardButton("🔍 Hozir skanir", callback_data="scan_now")],
-        [InlineKeyboardButton("🔥 Trending/Kategoriyalar", callback_data="trending_menu"), InlineKeyboardButton("🌦 Ob-havo", callback_data="weather_menu")],
+        [InlineKeyboardButton("🔥 Trending", callback_data="trending_menu"), InlineKeyboardButton("🌦 Ob-havo", callback_data="weather_menu"), InlineKeyboardButton("⚖️ Arbitraj", callback_data="arb_menu")],
         [InlineKeyboardButton("⏱ Interval o'zgartirish", callback_data="set_interval")],
         [InlineKeyboardButton("📈 Yes filtri",  callback_data="set_yes"), InlineKeyboardButton("📉 No filtri",   callback_data="set_no")],
         [InlineKeyboardButton("📅 Davr filtri", callback_data="set_time"), InlineKeyboardButton("🔄 Tozalash", callback_data="clear_seen")],
@@ -498,6 +607,20 @@ def weather_keyboard():
 def weather_model_keyboard():
     return InlineKeyboardMarkup([[InlineKeyboardButton("ECMWF (Eng aniq)", callback_data="wmodel_ecmwf")], [InlineKeyboardButton("GFS (Tezkor)", callback_data="wmodel_gfs")], [InlineKeyboardButton("Ensemble (Stabil)", callback_data="wmodel_ensemble")], [InlineKeyboardButton("◀️ Orqaga", callback_data="weather_menu")]])
 
+def arb_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"Chegara: {state['arb_threshold']*100:.1f}%", callback_data="set_arb_threshold")],
+        [InlineKeyboardButton("◀️ Orqaga", callback_data="back")]
+    ])
+
+def arb_threshold_keyboard():
+    thresholds = [("95%", 0.95), ("96%", 0.96), ("97%", 0.97), ("98%", 0.98), ("99%", 0.99)]
+    rows = []
+    for label, val in thresholds:
+        rows.append([InlineKeyboardButton(label, callback_data=f"arbt_{val}")])
+    rows.append([InlineKeyboardButton("◀️ Orqaga", callback_data="arb_menu")])
+    return InlineKeyboardMarkup(rows)
+
 # ─── HANDLERS ────────────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -509,7 +632,7 @@ async def cmd_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query; data = q.data; await q.answer()
     if data == "start_mon":
-        state["running"] = True; state["seen_urls"] = set(); state["seen_trending_urls"] = set(); state["trending_volumes"] = {}
+        state["running"] = True; state["seen_urls"] = set(); state["seen_trending_urls"] = set(); state["seen_arb_urls"] = set(); state["trending_volumes"] = {}
         await q.edit_message_text(f"▶️ <b>Monitoring boshlandi!</b>\nHar {state['interval']} soniyada skanirlanadi.", parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "stop_mon":
         state["running"] = False; await q.edit_message_text("⏹ <b>Monitoring to'xtatildi.</b>", parse_mode="HTML", reply_markup=main_keyboard())
@@ -521,9 +644,16 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(text, parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "scan_now":
         await q.edit_message_text("🔍 Skanirlanmoqda...", parse_mode="HTML")
-        markets = await fetch_markets(); filtered = filter_markets(markets); state["last_update"] = time.strftime('%H:%M:%S'); state["last_count"] = len(filtered)
-        if filtered: await send_tg(ctx.application, build_message(filtered, title="🔍 Qo'lda Skanir Natijalari")); await q.edit_message_text(f"✅ {len(filtered)} ta savdo topildi va yuborildi.", parse_mode="HTML", reply_markup=main_keyboard())
-        else: await q.edit_message_text("❌ Filtrga mos savdolar topilmadi.", parse_mode="HTML", reply_markup=main_keyboard())
+        async with httpx.AsyncClient() as client:
+            markets = await fetch_markets(client)
+            filtered = filter_markets(markets)
+            state["last_update"] = time.strftime('%H:%M:%S')
+            state["last_count"] = len(filtered)
+            if filtered:
+                await send_tg(ctx.application, build_message(filtered, title="🔍 Qo'lda Skanir Natijalari"))
+                await q.edit_message_text(f"✅ {len(filtered)} ta savdo topildi va yuborildi.", parse_mode="HTML", reply_markup=main_keyboard())
+            else:
+                await q.edit_message_text("❌ Filtrga mos savdolar topilmadi.", parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "set_interval": await q.edit_message_text("⏱ Yangilanish intervalini tanlang:", reply_markup=interval_keyboard())
     elif data.startswith("interval_"): state["interval"] = int(data.split("_")[1]); await q.edit_message_text(f"✅ Interval <b>{state['interval']} soniya</b> ga o'zgartirildi.", parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "set_yes": await q.edit_message_text("📈 Yes ehtimollik oraliqini tanlang:", reply_markup=yes_keyboard())
@@ -533,8 +663,9 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "set_time": await q.edit_message_text("📅 Savdo tugash vaqt oraliqini tanlang:", reply_markup=time_keyboard())
     elif data.startswith("time_"): state["time_filter"] = data.split("_")[1]; await q.edit_message_text(f"✅ Davr filtri <b>{state['time_filter'].upper()}</b> ga o'zgartirildi.", parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "clear_seen":
-        count = len(state["seen_urls"]); count_t = len(state["seen_trending_urls"]); state["seen_urls"] = set(); state["seen_trending_urls"] = set(); state["trending_volumes"] = {}
-        await q.edit_message_text(f"🔄 {count} ta oddiy va {count_t} ta trending URL tozalandi. Keyingi skanda hammasi qayta yuboriladi.", parse_mode="HTML", reply_markup=main_keyboard())
+        count = len(state["seen_urls"]); count_t = len(state["seen_trending_urls"]); count_a = len(state["seen_arb_urls"])
+        state["seen_urls"] = set(); state["seen_trending_urls"] = set(); state["seen_arb_urls"] = set(); state["trending_volumes"] = {}
+        await q.edit_message_text(f"🔄 {count} ta oddiy, {count_t} ta trending va {count_a} ta arbitraj URL tozalandi. Keyingi skanda hammasi qayta yuboriladi.", parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "trending_menu": await q.edit_message_text("🔥 <b>Trending & Kategoriyalar Sozlamalari</b>\n\nBu bo'limda siz tanlangan kategoriyalar bo'yicha hajmi yuqori bo'lgan (tez va ko'p pul kirayotgan) savdolarni kuzatishni sozlashingiz mumkin.", parse_mode="HTML", reply_markup=trending_keyboard())
     elif data == "toggle_trending": state["trending_enabled"] = not state["trending_enabled"]; await q.edit_message_text("🔥 Trending sozlamalari:", reply_markup=trending_keyboard())
     elif data == "set_min_vol": await q.edit_message_text(f"💰 <b>Minimal 24s hajmni tanlang:</b>\n\nHozirgi: ${state['min_volume_24h']:,}", parse_mode="HTML", reply_markup=volume_keyboard())
@@ -548,10 +679,25 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "weather_menu": await q.edit_message_text("🌦 <b>Ob-havo Tahlili Sozlamalari</b>\n\nBot avtomatik ravishda ob-havo bozorlarini aniqlaydi va Open-Meteo orqali tahlil qiladi.", parse_mode="HTML", reply_markup=weather_keyboard())
     elif data == "set_weather_model": await q.edit_message_text("🌦 <b>Ob-havo modelini tanlang:</b>", parse_mode="HTML", reply_markup=weather_model_keyboard())
     elif data.startswith("wmodel_"): state["weather_model"] = data.replace("wmodel_", ""); await q.edit_message_text(f"✅ Ob-havo modeli <b>{state['weather_model'].upper()}</b> ga o'zgartirildi.", parse_mode="HTML", reply_markup=weather_keyboard())
+
+    elif data == "arb_menu":
+        await q.edit_message_text(
+            "⚖️ <b>Arbitraj Sozlamalari</b>\n\n"
+            "Bot barcha bozorlardagi natijalar narxini qo'shib chiqadi. "
+            "Agar jami narx 100% dan kam bo'lsa, bu arbitraj imkoniyati hisoblanadi.",
+            parse_mode="HTML", reply_markup=arb_keyboard())
+
+    elif data == "set_arb_threshold":
+        await q.edit_message_text("⚖️ <b>Arbitraj chegarasini tanlang:</b>", parse_mode="HTML", reply_markup=arb_threshold_keyboard())
+
+    elif data.startswith("arbt_"):
+        state["arb_threshold"] = float(data.replace("arbt_", ""))
+        await q.edit_message_text(f"✅ Arbitraj chegarasi <b>{state['arb_threshold']*100:.1f}%</b> ga o'rnatildi.", parse_mode="HTML", reply_markup=arb_keyboard())
+
     elif data == "show_filters":
         trending_status = "✅ YOQILGAN" if state['trending_enabled'] else "❌ O'CHIRILGAN"
         cats = ', '.join(state['active_categories']) if state['active_categories'] else 'Yoq'
-        text = (f"📋 <b>Hozirgi filtrlar</b>\n\n✅ Yes:  {state['yes_min']*100:.0f}% – {state['yes_max']*100:.0f}%\n❌ No:   {state['no_min']*100:.0f}% – {state['no_max']*100:.0f}%\n📅 Davr:   {state['time_filter'].upper()}\n⏱ Interval: {state['interval']} soniya\n📦 Limit: {state['limit']} savdo\n\n🔥 Trending: {trending_status}\n💰 Min Hajm: ${state['min_volume_24h']:,}\n📂 Kategoriyalar: {cats}\n🌦 Ob-havo modeli: {state['weather_model'].upper()}")
+        text = (f"📋 <b>Hozirgi filtrlar</b>\n\n✅ Yes:  {state['yes_min']*100:.0f}% – {state['yes_max']*100:.0f}%\n❌ No:   {state['no_min']*100:.0f}% – {state['no_max']*100:.0f}%\n📅 Davr:   {state['time_filter'].upper()}\n⏱ Interval: {state['interval']} soniya\n📦 Limit: {state['limit']} savdo\n\n🔥 Trending: {trending_status}\n💰 Min Hajm: ${state['min_volume_24h']:,}\n📂 Kategoriyalar: {cats}\n🌦 Ob-havo modeli: {state['weather_model'].upper()}\n⚖️ Arbitraj: {state['arb_threshold']*100:.1f}%")
         await q.edit_message_text(text, parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "back": await q.edit_message_text("📋 Boshqaruv paneli:", reply_markup=main_keyboard())
 
