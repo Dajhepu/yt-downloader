@@ -39,6 +39,7 @@ state = {
     "min_volume_24h": 5000.0,
     "active_categories": ["Geopolitics", "Finance", "Iran", "Politics", "Sports", "Economy", "Elections", "Weather", "Mentions", "Crypto"],
     "seen_trending_urls": set(),
+    "trending_volumes": {}, # url -> last_alert_vol
 }
 
 CATEGORY_KEYWORDS = {
@@ -190,8 +191,14 @@ def build_trending_message(markets):
             pass
 
         safe_q = html.escape(m['question'])
+
+        status_tag = "🚀 YANGI"
+        if m.get('is_update'):
+            increase = m['vol24'] - m['prev_vol']
+            status_tag = f"📈 FAOL (+$ {increase:,.0f})"
+
         entry = (
-            f"{i}. [{m['category']}] <b>{safe_q}</b>\n"
+            f"{i}. {status_tag} [{m['category']}] <b>{safe_q}</b>\n"
             f"   💰 24s Hajm: <b>${m['vol24']:,.0f}</b>\n"
             f"   📊 Narxlar: {price_str.lstrip(' | ')}\n"
             f"   🔗 <a href=\"{m['url']}\">Polymarket'da ko'rish</a>\n\n"
@@ -264,10 +271,22 @@ async def monitor_loop(app):
 
             # Trending filtr
             trending = filter_trending_markets(markets)
-            new_trending = [m for m in trending if m['url'] not in state["seen_trending_urls"]]
-            if new_trending:
-                state["seen_trending_urls"].update(m['url'] for m in new_trending)
-                msg_trending = build_trending_message(new_trending)
+            trending_to_alert = []
+            for m in trending:
+                url = m['url']
+                vol = m['vol24']
+                last_vol = state["trending_volumes"].get(url, 0)
+
+                # Alert if new OR volume increased by 50% AND at least $5,000 increase
+                if url not in state["seen_trending_urls"] or (vol > last_vol * 1.5 and vol > last_vol + 5000):
+                    m['is_update'] = url in state["seen_trending_urls"]
+                    m['prev_vol'] = last_vol
+                    trending_to_alert.append(m)
+                    state["seen_trending_urls"].add(url)
+                    state["trending_volumes"][url] = vol
+
+            if trending_to_alert:
+                msg_trending = build_trending_message(trending_to_alert)
                 await send_tg(app, msg_trending)
 
         await asyncio.sleep(state["interval"])
@@ -425,6 +444,7 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         state["running"] = True
         state["seen_urls"] = set()          # reset so alerts fire immediately
         state["seen_trending_urls"] = set()
+        state["trending_volumes"] = {}
         await q.edit_message_text(
             "▶️ <b>Monitoring boshlandi!</b>\n"
             f"Har {state['interval']} soniyada skanirlanadi.",
@@ -527,6 +547,7 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         count_t = len(state["seen_trending_urls"])
         state["seen_urls"] = set()
         state["seen_trending_urls"] = set()
+        state["trending_volumes"] = {}
         await q.edit_message_text(
             f"🔄 {count} ta oddiy va {count_t} ta trending URL tozalandi. "
             "Keyingi skanda hammasi qayta yuboriladi.",
