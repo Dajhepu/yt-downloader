@@ -584,7 +584,7 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"📦 Limit: {state['limit']} savdo\n\n"
             f"🔥 Trending: {trending_s}\n"
             f"💰 Min Hajm: ${state['min_volume_24h']:,}\n"
-            f"📂 Kategoriyalar: {', '.join(state['active_categories']) if state['active_categories'] else 'Yo\'q'}"
+            f"📂 Kategoriyalar: {', '.join(state['active_categories']) if state['active_categories'] else 'Yoq'}"
         )
         await q.edit_message_text(text, parse_mode="HTML",
                                   reply_markup=main_keyboard())
