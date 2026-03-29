@@ -18,7 +18,7 @@ from telegram.ext import (
 logging.basicConfig(level=logging.INFO)
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
-BOT_TOKEN  = os.getenv("BOT_TOKEN", "7256069971:AAHNTBZZipJI9mF1K1lRyNiQb2n7qEEDEDY")
+BOT_TOKEN  = os.getenv("BOT_TOKEN", "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM")
 CHAT_ID    = int(os.getenv("CHAT_ID", "798283148"))
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -68,21 +68,28 @@ async def fetch_whale_trades(address, limit=5):
 # ─── MONITORING ─────────────────────────────────────────────────────────────
 
 async def monitor_whales(app):
+    initialized_whales = set()
     while True:
         if state["running"] and state["tracked_whales"]:
             for address in state["tracked_whales"]:
                 trades = await fetch_whale_trades(address)
                 name = state["whale_names"].get(address, address[:8])
 
+                is_first_run = address not in initialized_whales
+                if is_first_run:
+                    initialized_whales.add(address)
+
                 new_trades = []
                 for t in trades:
-                    trade_id = t.get('id') or f"{address}_{t.get('timestamp')}_{t.get('payout')}"
+                    trade_id = t.get('transactionHash') or f"{address}_{t.get('timestamp')}"
                     if trade_id not in state["seen_trade_ids"]:
-                        new_trades.append(t)
+                        if not is_first_run:
+                            new_trades.append(t)
                         state["seen_trade_ids"].add(trade_id)
 
-                # Prevent memory leak by keeping only the last 10,000 trade IDs
+                # Prevent memory leak
                 if len(state["seen_trade_ids"]) > 10000:
+                    # Keep most recent by timestamp if possible, but for simplicity just prune
                     state["seen_trade_ids"] = set(list(state["seen_trade_ids"])[-5000:])
 
                 if new_trades:
@@ -170,12 +177,21 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "back":
         await q.edit_message_text("📋 Boshqaruv paneli:", reply_markup=main_keyboard())
 
+async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🤖 <b>Polymarket Whale Tracker</b>\n\n"
+        "Bu bot top traderlar savdolarini kuzatadi.",
+        parse_mode="HTML",
+        reply_markup=main_keyboard()
+    )
+
 async def post_init(app):
     state["client"] = httpx.AsyncClient()
     asyncio.create_task(monitor_whales(app))
 
 def main():
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
+    app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.run_polling()
 
