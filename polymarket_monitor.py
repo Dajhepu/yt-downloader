@@ -12,6 +12,7 @@ import html
 import re
 import os
 import dateparser
+from fuzzywuzzy import fuzz
 from datetime import datetime, timedelta, timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -521,11 +522,16 @@ def normalize_title(title):
     return "".join(filtered)
 
 def find_cross_arbitrage(poly_markets, myriad_markets):
+    """
+    Enhanced cross-platform arbitrage detection using fuzzy matching.
+    """
     opportunities = []
     myriad_data = []
     for mm in myriad_markets:
+        m_title = mm.get('title', '')
         myriad_data.append({
-            'norm': normalize_title(mm.get('title', '')),
+            'title': m_title,
+            'norm': normalize_title(m_title),
             'market': mm,
             'outcomes': {normalize_title(o.get('title', '')): o for o in mm.get('outcomes', [])}
         })
@@ -535,37 +541,46 @@ def find_cross_arbitrage(poly_markets, myriad_markets):
             p_q = pm.get('question', '')
             norm_p = normalize_title(p_q)
 
-            # 1. Direct Match
-            match = next((m for m in myriad_data if m['norm'] == norm_p), None)
-            if match:
-                mm = match['market']
-                p_prices = parse_json_field(pm.get('outcomePrices'))
-                if p_prices and len(p_prices) >= 2:
-                    p_yes = float(p_prices[0])
-                    m_yes_obj = match['outcomes'].get(normalize_title("Yes")) or (mm.get('outcomes') or [{}])[0]
+            p_prices = parse_json_field(pm.get('outcomePrices'))
+            if not p_prices or len(p_prices) < 2:
+                continue
+            p_yes = float(p_prices[0])
+
+            # 1. Look for high-similarity matches
+            for md in myriad_data:
+                mm = md['market']
+                # Check direct similarity between market titles
+                similarity = fuzz.token_set_ratio(p_q.lower(), md['title'].lower())
+
+                if similarity > 90:
+                    # Match found! Compare "Yes" prices
+                    m_yes_obj = md['outcomes'].get(normalize_title("Yes")) or (mm.get('outcomes') or [{}])[0]
                     m_yes = float(m_yes_obj.get('price', 0))
+
                     diff = abs(p_yes - m_yes)
                     if diff > state.get("cross_threshold", 0.05):
-                        opportunities.append({"question": p_q, "p_yes": p_yes, "m_yes": m_yes, "diff": diff,
+                        opportunities.append({
+                            "question": p_q, "p_yes": p_yes, "m_yes": m_yes, "diff": diff,
                             "url_p": f"https://polymarket.com/market/{pm.get('slug', '')}",
-                            "url_m": f"https://myriad.markets/markets/{mm.get('slug', '')}"})
+                            "url_m": f"https://myriad.markets/markets/{mm.get('slug', '')}"
+                        })
+                    break
 
-            # 2. Binary vs Categorical Match
-            else:
-                for md in myriad_data:
-                    if md['norm'] in norm_p or norm_p in md['norm']:
-                        for o_norm, o_obj in md['outcomes'].items():
-                            if (o_norm in norm_p and len(o_norm) > 2) or (o_norm != "" and o_norm == norm_p):
-                                p_prices = parse_json_field(pm.get('outcomePrices'))
-                                if p_prices and len(p_prices) >= 2:
-                                    p_yes = float(p_prices[0])
-                                    m_yes = float(o_obj.get('price', 0))
-                                    diff = abs(p_yes - m_yes)
-                                    if diff > state.get("cross_threshold", 0.05):
-                                        opportunities.append({"question": p_q, "p_yes": p_yes, "m_yes": m_yes, "diff": diff,
-                                            "url_p": f"https://polymarket.com/market/{pm.get('slug', '')}",
-                                            "url_m": f"https://myriad.markets/markets/{md['market'].get('slug', '')}"})
-                                break
+                # 2. Check if Polymarket question matches a Myriad outcome within its market
+                # e.g., Poly: "Will Spain win?" vs Myriad: "World Cup Winner" (Market) -> "Spain" (Outcome)
+                for o_norm, o_obj in md['outcomes'].items():
+                    # If Poly question contains both market title keywords AND outcome title keywords
+                    combined_text = (md['title'] + " " + o_obj.get('title', '')).lower()
+                    if fuzz.partial_ratio(combined_text, p_q.lower()) > 90:
+                        m_yes = float(o_obj.get('price', 0))
+                        diff = abs(p_yes - m_yes)
+                        if diff > state.get("cross_threshold", 0.05):
+                            opportunities.append({
+                                "question": p_q, "p_yes": p_yes, "m_yes": m_yes, "diff": diff,
+                                "url_p": f"https://polymarket.com/market/{pm.get('slug', '')}",
+                                "url_m": f"https://myriad.markets/markets/{mm.get('slug', '')}"
+                            })
+                        break
         except Exception: continue
     return opportunities
 
@@ -578,36 +593,35 @@ def build_cross_message(opportunities, title="Poly vs Myriad"):
 
 def find_kalshi_arbitrage(poly_markets, kalshi_markets):
     """
-    Matches Polymarket and Kalshi and calculates price gaps.
+    Matches Polymarket and Kalshi using fuzzy logic and calculates price gaps.
     """
     opportunities = []
-    kalshi_map = {normalize_title(k.get('title', '')): k for k in kalshi_markets}
-
     for pm in poly_markets:
         try:
             p_q = pm.get('question', '')
-            norm_p = normalize_title(p_q)
+            p_prices = parse_json_field(pm.get('outcomePrices'))
+            if not p_prices or len(p_prices) < 2:
+                continue
+            p_yes = float(p_prices[0])
 
-            if norm_p in kalshi_map:
-                km = kalshi_map[norm_p]
+            for km in kalshi_markets:
+                k_t = km.get('title', '')
+                # Check for high similarity match
+                similarity = fuzz.token_set_ratio(p_q.lower(), k_t.lower())
 
-                p_prices = parse_json_field(pm.get('outcomePrices'))
-                if not p_prices or len(p_prices) < 2: continue
-
-                p_yes = float(p_prices[0])
-                # Kalshi prices are in cents (0.0 to 1.0 represented as dollars)
-                k_yes = float(km.get('yes_bid_dollars', 0) or km.get('last_price_dollars', 0))
-
-                diff = abs(p_yes - k_yes)
-                if diff > state.get("cross_threshold", 0.05):
-                    opportunities.append({
-                        "question": p_q,
-                        "p_yes": p_yes,
-                        "m_yes": k_yes,
-                        "diff": diff,
-                        "url_p": f"https://polymarket.com/market/{pm.get('slug', '')}",
-                        "url_m": f"https://kalshi.com/markets/{km.get('ticker', '')}"
-                    })
+                if similarity > 85:
+                    k_yes = float(km.get('yes_bid_dollars', 0) or km.get('last_price_dollars', 0))
+                    diff = abs(p_yes - k_yes)
+                    if diff > state.get("cross_threshold", 0.05):
+                        opportunities.append({
+                            "question": p_q,
+                            "p_yes": p_yes,
+                            "m_yes": k_yes,
+                            "diff": diff,
+                            "url_p": f"https://polymarket.com/market/{pm.get('slug', '')}",
+                            "url_m": f"https://kalshi.com/markets/{km.get('ticker', '')}"
+                        })
+                    break
         except Exception: continue
     return opportunities
 

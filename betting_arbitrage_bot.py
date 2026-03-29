@@ -77,17 +77,58 @@ class ArbitrageEngine:
         return opportunities
 
 # ─── SCRAPER: Playwright Implementation ───
+async def simulate_human_behavior(page):
+    """Simulates human-like interactions to bypass bot detection."""
+    try:
+        await page.mouse.move(100, 100)
+        await asyncio.sleep(1)
+        await page.mouse.wheel(0, 500)
+        await asyncio.sleep(1)
+        await page.mouse.wheel(0, -200)
+    except Exception:
+        pass
+
 async def scrape_platform(playwright, name, url, selector):
-    browser = await playwright.chromium.launch(headless=settings.HEADLESS)
-    context = await browser.new_context(user_agent="Mozilla/5.0...")
+    # Use a real user profile or specific args for better stealth
+    browser = await playwright.chromium.launch(
+        headless=settings.HEADLESS,
+        args=["--disable-blink-features=AutomationControlled"]
+    )
+
+    context = await browser.new_context(
+        viewport={'width': 1920, 'height': 1080},
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    )
+
     page = await context.new_page()
     await stealth_async(page)
 
     data = []
     try:
         logger.info(f"Scraping {name}...")
-        await page.goto(url, wait_until="networkidle", timeout=60000)
-        await asyncio.sleep(5)
+        # Increase timeout for Cloudflare challenges
+        await page.goto(url, wait_until="commit", timeout=90000)
+
+        # Wait for potential Cloudflare auto-verify
+        logger.info("Waiting for potential Cloudflare challenge...")
+        await asyncio.sleep(random.uniform(10, 15))
+
+        await simulate_human_behavior(page)
+
+        # Check if we are stuck on a verification page
+        content = await page.content()
+        if "Verifying you are human" in content or "cf-challenge" in content:
+            logger.error(f"STUCK ON VERIFICATION for {name}. Cloudflare detected.")
+            # Take a screenshot for debugging
+            await page.screenshot(path=f"debug_{name}_verification.png")
+            return []
+
+        # Wait until the target selector is visible or network is idle
+        try:
+            await page.wait_for_selector(selector, timeout=30000)
+        except Exception:
+            logger.warning(f"Selector {selector} not found on {name}, maybe stuck on verification.")
+
         elements = await page.query_selector_all(selector)
         for el in elements:
             text = await el.inner_text()
