@@ -4,11 +4,12 @@ Polymarket Monitor - To'liq Telegram bot boshqaruvi
 
 import asyncio
 import logging
-import requests
+import httpx
 import json
 import time
 import threading
 import html
+import difflib
 from datetime import datetime, timedelta, timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -24,6 +25,7 @@ CHAT_ID    = 798283148
 
 # Shared state
 state = {
+    "client": None, # Will be initialized in main()
     "running": False,
     "interval": 60,
     "limit": 500,
@@ -40,6 +42,7 @@ state = {
     "active_categories": ["Geopolitics", "Finance", "Iran", "Politics", "Sports", "Economy", "Elections", "Weather", "Mentions", "Crypto"],
     "seen_trending_urls": set(),
     "trending_volumes": {}, # url -> last_alert_vol
+    "seen_arb_ids": set(),
 }
 
 CATEGORY_KEYWORDS = {
@@ -55,6 +58,179 @@ CATEGORY_KEYWORDS = {
     "Crypto": ["bitcoin", "eth", "crypto", "binance", "coinbase", "solana", "doge", "token", "blockchain"]
 }
 
+# ─── AZURO HELPERS ──────────────────────────────────────────────────────────
+
+async def fetch_azuro_games():
+    """Azuro Protocol'dan Prematch o'yinlarni olish."""
+    url = "https://api.onchainfeed.org/api/v1/public/market-manager/games-by-filters"
+    params = {
+        "environment": "PolygonUSDT",
+        "gameState": "Prematch",
+        "orderBy": "startsAt",
+        "orderDirection": "asc",
+        "page": 1,
+        "perPage": 50
+    }
+    try:
+        r = await state["client"].get(url, params=params, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        return data.get('games', [])
+    except Exception as e:
+        logging.warning(f"Azuro games fetch error: {e}")
+        return []
+
+async def fetch_azuro_conditions(game_ids):
+    """Azuro o'yinlari uchun koeffitsientlarni olish."""
+    if not game_ids:
+        return []
+    url = "https://api.onchainfeed.org/api/v1/public/market-manager/conditions-by-game-ids"
+    body = {
+        "gameIds": game_ids,
+        "environment": "PolygonUSDT"
+    }
+    try:
+        r = await state["client"].post(url, json=body, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        return data.get('conditions', [])
+    except Exception as e:
+        logging.warning(f"Azuro conditions fetch error: {e}")
+        return []
+
+def get_similarity(s1, s2):
+    return difflib.SequenceMatcher(None, s1.lower(), s2.lower()).ratio()
+
+def extract_teams(title):
+    """Azuro o'yin nomidan jamoalarni ajratish (odatda 'Team A - Team B')."""
+    if ' - ' in title:
+        parts = title.split(' - ')
+        return parts[0].strip(), parts[1].strip()
+    return None, None
+
+async def find_arbitrage():
+    """Polymarket va Azuro o'rtasida arbitraj qidirish."""
+    poly_markets = await fetch_markets()
+    azuro_games = await fetch_azuro_games()
+
+    if not poly_markets or not azuro_games:
+        return []
+
+    # Faqat binary (Yes/No) Polymarket o'yinlarini olamiz
+    poly_filtered = filter_markets(poly_markets)
+
+    game_ids = [g['gameId'] for g in azuro_games]
+    azuro_conditions = await fetch_azuro_conditions(game_ids)
+
+    # Organize azuro conditions by gameId
+    azuro_data = {}
+    for g in azuro_games:
+        azuro_data[g['gameId']] = {
+            'title': g['title'],
+            'conditions': [c for c in azuro_conditions if c['game']['gameId'] == g['gameId']]
+        }
+
+    results = []
+
+    for pm in poly_filtered:
+        pm_q = pm['question']
+        # Try to find match in Azuro
+        best_match = None
+        best_score = 0
+
+        for gid, adata in azuro_data.items():
+            score = get_similarity(pm_q, adata['title'])
+            if score > 0.65 and score > best_score:
+                best_score = score
+                best_match = adata
+                best_match['gameId'] = gid
+
+        if best_match:
+            team1, team2 = extract_teams(best_match['title'])
+            if not team1 or not team2:
+                continue
+
+            # Polymarket question usually contains team names.
+            # We must check which team is mentioned in a 'Positive' way.
+            # "Will Team 1 win?" -> Yes = Team 1 wins, No = Team 2 wins (if no draw)
+
+            # Check for specifically mentioned winner
+            # e.g. "Will Novak Djokovic win..."
+            t1_win = f"{team1.lower()} win" in pm_q.lower()
+            t2_win = f"{team2.lower()} win" in pm_q.lower()
+
+            if t1_win == t2_win:
+                # Try just mentioning if one is mentioned first or more prominently?
+                # For now, let's just check if one team is mentioned and the other isn't
+                t1_in_q = team1.lower() in pm_q.lower()
+                t2_in_q = team2.lower() in pm_q.lower()
+
+                if t1_in_q and not t2_in_q:
+                    mentioned_team = team1
+                elif t2_in_q and not t1_in_q:
+                    mentioned_team = team2
+                else:
+                    # If both mentioned, look for "win" near team name
+                    # Simplification: assume the first team mentioned is the subject if it's "Will X beat Y?"
+                    idx1 = pm_q.lower().find(team1.lower())
+                    idx2 = pm_q.lower().find(team2.lower())
+                    if idx1 != -1 and (idx2 == -1 or idx1 < idx2):
+                        mentioned_team = team1
+                    else:
+                        mentioned_team = team2
+            else:
+                mentioned_team = team1 if t1_win else team2
+
+            other_team = team2 if mentioned_team == team1 else team1
+
+            for cond in best_match['conditions']:
+                outcomes = {o['outcomeId']: float(o['odds']) for o in cond['outcomes']}
+
+                # Winner (1, 2)
+                if '1' in outcomes and '2' in outcomes:
+                    has_draw = '3' in outcomes
+                    if has_draw: continue # Only binary for now for safety
+
+                    az_p1 = 1 / outcomes['1'] # Home (Team 1)
+                    az_p2 = 1 / outcomes['2'] # Away (Team 2)
+
+                    # Case 1: Poly Yes (Mentioned Team) + Azuro (Other Team)
+                    # Case 2: Poly No (Other Team) + Azuro (Mentioned Team)
+
+                    poly_yes_price = pm['yes']
+                    poly_no_price = pm['no']
+
+                    az_mentioned_price = az_p1 if mentioned_team == team1 else az_p2
+                    az_other_price = az_p2 if mentioned_team == team1 else az_p1
+
+                    # Arb 1: Buy Yes on Poly (mentioned_team wins), Buy other_team on Azuro
+                    if poly_yes_price + az_other_price < 0.96:
+                        results.append({
+                            'type': 'Cross-Platform',
+                            'market': pm_q,
+                            'poly_url': pm['url'],
+                            'poly_outcome': f"Yes ({mentioned_team})",
+                            'poly_price': poly_yes_price,
+                            'azuro_outcome': f"{'Away' if other_team==team2 else 'Home'} ({other_team})",
+                            'azuro_price': az_other_price,
+                            'profit': (1 - (poly_yes_price + az_other_price)) * 100
+                        })
+
+                    # Arb 2: Buy No on Poly (other_team wins), Buy mentioned_team on Azuro
+                    if poly_no_price + az_mentioned_price < 0.96:
+                        results.append({
+                            'type': 'Cross-Platform',
+                            'market': pm_q,
+                            'poly_url': pm['url'],
+                            'poly_outcome': f"No ({mentioned_team} loses)",
+                            'poly_price': poly_no_price,
+                            'azuro_outcome': f"{'Home' if mentioned_team==team1 else 'Away'} ({mentioned_team})",
+                            'azuro_price': az_mentioned_price,
+                            'profit': (1 - (poly_no_price + az_mentioned_price)) * 100
+                        })
+
+    return results
+
 # ─── POLYMARKET HELPERS ──────────────────────────────────────────────────────
 
 def parse_json_field(field):
@@ -65,11 +241,11 @@ def parse_json_field(field):
             return None
     return field
 
-def fetch_markets():
+async def fetch_markets():
     url = (f"https://gamma-api.polymarket.com/markets"
            f"?active=true&closed=false&limit={state['limit']}")
     try:
-        r = requests.get(url, timeout=15)
+        r = await state["client"].get(url, timeout=15)
         r.raise_for_status()
         return r.json()
     except Exception:
@@ -208,6 +384,28 @@ def build_trending_message(markets):
         lines.append(entry)
     return "\n".join(lines)
 
+def build_arb_message(arbs):
+    ts = time.strftime('%Y-%m-%d %H:%M:%S')
+    lines = [
+        f"<b>⚖️ Arbitraj Imkoniyatlari (Polymarket vs Azuro)</b>",
+        f"📅 {ts}",
+        f"🔍 Topildi: <b>{len(arbs)}</b>",
+        "",
+    ]
+    for i, a in enumerate(arbs, 1):
+        safe_q = html.escape(a['market'])
+        entry = (
+            f"{i}. <b>{safe_q}</b>\n"
+            f"   💰 Foyda: <b>{a['profit']:.2f}%</b>\n"
+            f"   🅿️ Poly: {a['poly_outcome']} @ {a['poly_price']:.2f}\n"
+            f"   🅰️ Azuro: {a['azuro_outcome']} @ {a['azuro_price']:.2f}\n"
+            f"   🔗 <a href=\"{a['poly_url']}\">Polymarket'da ko'rish</a>\n\n"
+        )
+        if len("\n".join(lines) + entry) > 4000:
+            break
+        lines.append(entry)
+    return "\n".join(lines)
+
 def build_message(markets, title="🟢 Polymarket Yangi Savdolar"):
     ts = time.strftime('%Y-%m-%d %H:%M:%S')
     lines = [
@@ -256,7 +454,7 @@ async def send_tg(app, text):
 async def monitor_loop(app):
     while True:
         if state["running"]:
-            markets  = fetch_markets()
+            markets  = await fetch_markets()
 
             # Standart filtr
             filtered = filter_markets(markets)
@@ -289,6 +487,21 @@ async def monitor_loop(app):
                 msg_trending = build_trending_message(trending_to_alert)
                 await send_tg(app, msg_trending)
 
+            # Arbitraj tekshiruvi (har 5 marta skanda bir marta, Azuro API limitlari uchun)
+            if time.time() % (state["interval"] * 5) < state["interval"]:
+                arbs = await find_arbitrage()
+                new_arbs = []
+                for a in arbs:
+                    # De-duplicate by market and outcomes, ignoring small profit changes
+                    arb_id = f"{a['market']}_{a['poly_outcome']}_{a['azuro_outcome']}"
+                    if arb_id not in state["seen_arb_ids"]:
+                        new_arbs.append(a)
+                        state["seen_arb_ids"].add(arb_id)
+
+                if new_arbs:
+                    msg_arb = build_arb_message(new_arbs)
+                    await send_tg(app, msg_arb)
+
         await asyncio.sleep(state["interval"])
 
 # ─── KEYBOARDS ───────────────────────────────────────────────────────────────
@@ -302,6 +515,9 @@ def main_keyboard():
         [
             InlineKeyboardButton("📊 Status",      callback_data="status"),
             InlineKeyboardButton("🔍 Hozir skanir", callback_data="scan_now"),
+        ],
+        [
+            InlineKeyboardButton("⚖️ Arbitraj",     callback_data="check_arb"),
         ],
         [
             InlineKeyboardButton("🔥 Trending/Kategoriyalar", callback_data="trending_menu"),
@@ -475,9 +691,23 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(text, parse_mode="HTML",
                                   reply_markup=main_keyboard())
 
+    elif data == "check_arb":
+        await q.edit_message_text("⚖️ Arbitraj imkoniyatlari qidirilmoqda...", parse_mode="HTML")
+        arbs = await find_arbitrage()
+        if arbs:
+            msg = build_arb_message(arbs)
+            await send_tg(ctx.application, msg)
+            await q.edit_message_text(
+                f"✅ {len(arbs)} ta arbitraj topildi va yuborildi.",
+                parse_mode="HTML", reply_markup=main_keyboard())
+        else:
+            await q.edit_message_text(
+                "❌ Hozircha arbitraj imkoniyatlari topilmadi.",
+                parse_mode="HTML", reply_markup=main_keyboard())
+
     elif data == "scan_now":
         await q.edit_message_text("🔍 Skanirlanmoqda...", parse_mode="HTML")
-        markets  = fetch_markets()
+        markets  = await fetch_markets()
         filtered = filter_markets(markets)
         state["last_update"] = time.strftime('%H:%M:%S')
         state["last_count"]  = len(filtered)
@@ -618,6 +848,7 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── MAIN ────────────────────────────────────────────────────────────────────
 
 async def post_init(app):
+    state["client"] = httpx.AsyncClient()
     asyncio.create_task(monitor_loop(app))
     await app.bot.send_message(
         chat_id=CHAT_ID,
