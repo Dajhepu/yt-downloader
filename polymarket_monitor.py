@@ -46,6 +46,7 @@ state = {
     "seen_trending_urls": set(),
     "seen_arb_urls": set(),
     "seen_cross_urls": set(),
+    "seen_kalshi_urls": set(),
     "arb_threshold": 0.98,
     "cross_threshold": 0.05,
     "trending_volumes": {}, # url -> last_alert_vol
@@ -281,6 +282,19 @@ async def fetch_myriad_markets(client):
         return markets
     except Exception as e:
         logging.error(f"Myriad fetch error: {e}")
+        return []
+
+async def fetch_kalshi_markets(client):
+    url = "https://api.elections.kalshi.com/trade-api/v2/markets?status=active&limit=100"
+    try:
+        r = await client.get(url, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        markets = data.get('markets', [])
+        logging.info(f"Fetched {len(markets)} markets from Kalshi")
+        return markets
+    except Exception as e:
+        logging.error(f"Kalshi fetch error: {e}")
         return []
 
 def filter_trending_markets(markets):
@@ -555,12 +569,47 @@ def find_cross_arbitrage(poly_markets, myriad_markets):
         except Exception: continue
     return opportunities
 
-def build_cross_message(opportunities):
-    lines = ["🌐 <b>Platformalar-aro Arbitraj (Poly vs Myriad)</b>\n"]
+def build_cross_message(opportunities, title="Poly vs Myriad"):
+    lines = [f"🌐 <b>Platformalar-aro Arbitraj ({title})</b>\n"]
     for o in opportunities:
-        better = "Polymarket" if o['p_yes'] < o['m_yes'] else "Myriad"
-        lines.append(f"<b>{o['question']}</b>\n🔹 Poly YES: <b>{o['p_yes']:.2f}</b>\n🔸 Myriad YES: <b>{o['m_yes']:.2f}</b>\n📊 Farq: <b>{o['diff']*100:.1f}%</b>\n\n👉 {better}'da arzonroq!\n🔗 <a href=\"{o['url_p']}\">Polymarket</a> | <a href=\"{o['url_m']}\">Myriad</a>\n──────────────────")
+        better = title.split(" vs ")[0] if o['p_yes'] < o['m_yes'] else title.split(" vs ")[1]
+        lines.append(f"<b>{o['question']}</b>\n🔹 {title.split(' vs ')[0]} YES: <b>{o['p_yes']:.2f}</b>\n🔸 {title.split(' vs ')[1]} YES: <b>{o['m_yes']:.2f}</b>\n📊 Farq: <b>{o['diff']*100:.1f}%</b>\n\n👉 {better}'da arzonroq!\n🔗 <a href=\"{o['url_p']}\">Link 1</a> | <a href=\"{o['url_m']}\">Link 2</a>\n──────────────────")
     return "\n".join(lines)
+
+def find_kalshi_arbitrage(poly_markets, kalshi_markets):
+    """
+    Matches Polymarket and Kalshi and calculates price gaps.
+    """
+    opportunities = []
+    kalshi_map = {normalize_title(k.get('title', '')): k for k in kalshi_markets}
+
+    for pm in poly_markets:
+        try:
+            p_q = pm.get('question', '')
+            norm_p = normalize_title(p_q)
+
+            if norm_p in kalshi_map:
+                km = kalshi_map[norm_p]
+
+                p_prices = parse_json_field(pm.get('outcomePrices'))
+                if not p_prices or len(p_prices) < 2: continue
+
+                p_yes = float(p_prices[0])
+                # Kalshi prices are in cents (0.0 to 1.0 represented as dollars)
+                k_yes = float(km.get('yes_bid_dollars', 0) or km.get('last_price_dollars', 0))
+
+                diff = abs(p_yes - k_yes)
+                if diff > state.get("cross_threshold", 0.05):
+                    opportunities.append({
+                        "question": p_q,
+                        "p_yes": p_yes,
+                        "m_yes": k_yes,
+                        "diff": diff,
+                        "url_p": f"https://polymarket.com/market/{pm.get('slug', '')}",
+                        "url_m": f"https://kalshi.com/markets/{km.get('ticker', '')}"
+                    })
+        except Exception: continue
+    return opportunities
 
 async def monitor_loop(app):
     async with httpx.AsyncClient() as client:
@@ -568,7 +617,16 @@ async def monitor_loop(app):
             if state["running"]:
                 markets = await fetch_markets(client)
                 myriad_markets = await fetch_myriad_markets(client)
+                kalshi_markets = await fetch_kalshi_markets(client)
 
+                # Kalshi vs Poly
+                k_arbs = find_kalshi_arbitrage(markets, kalshi_markets)
+                new_k = [o for o in k_arbs if o['url_p'] not in state["seen_kalshi_urls"]]
+                if new_k:
+                    state["seen_kalshi_urls"].update(o['url_p'] for o in new_k)
+                    await send_tg(app, build_cross_message(new_k, title="Poly vs Kalshi"))
+
+                # Poly vs Myriad
                 cross_arbs = find_cross_arbitrage(markets, myriad_markets)
                 new_cross = [o for o in cross_arbs if o['url_p'] not in state["seen_cross_urls"]]
                 if new_cross:
@@ -717,10 +775,17 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def cmd_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📋 Boshqaruv paneli:", reply_markup=main_keyboard())
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logging.error(f"Update {update} caused error {context.error}")
+
 async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query; data = q.data; await q.answer()
+    q = update.callback_query; data = q.data
+    try:
+        await q.answer()
+    except Exception:
+        pass
     if data == "start_mon":
-        state["running"] = True; state["seen_urls"] = set(); state["seen_trending_urls"] = set(); state["seen_arb_urls"] = set(); state["seen_cross_urls"] = set(); state["trending_volumes"] = {}
+        state["running"] = True; state["seen_urls"] = set(); state["seen_trending_urls"] = set(); state["seen_arb_urls"] = set(); state["seen_cross_urls"] = set(); state["seen_kalshi_urls"] = set(); state["trending_volumes"] = {}
         await q.edit_message_text(f"▶️ <b>Monitoring boshlandi!</b>\nHar {state['interval']} soniyada skanirlanadi.", parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "stop_mon":
         state["running"] = False; await q.edit_message_text("⏹ <b>Monitoring to'xtatildi.</b>", parse_mode="HTML", reply_markup=main_keyboard())
@@ -751,9 +816,9 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "set_time": await q.edit_message_text("📅 Savdo tugash vaqt oraliqini tanlang:", reply_markup=time_keyboard())
     elif data.startswith("time_"): state["time_filter"] = data.split("_")[1]; await q.edit_message_text(f"✅ Davr filtri <b>{state['time_filter'].upper()}</b> ga o'zgartirildi.", parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "clear_seen":
-        count = len(state["seen_urls"]); count_t = len(state["seen_trending_urls"]); count_a = len(state["seen_arb_urls"]); count_c = len(state["seen_cross_urls"])
-        state["seen_urls"] = set(); state["seen_trending_urls"] = set(); state["seen_arb_urls"] = set(); state["seen_cross_urls"] = set(); state["trending_volumes"] = {}
-        await q.edit_message_text(f"🔄 {count} ta oddiy, {count_t} ta trending, {count_a} ta ichki va {count_c} ta cross arbitraj URL tozalandi. Keyingi skanda hammasi qayta yuboriladi.", parse_mode="HTML", reply_markup=main_keyboard())
+        count = len(state["seen_urls"]); count_t = len(state["seen_trending_urls"]); count_a = len(state["seen_arb_urls"]); count_c = len(state["seen_cross_urls"]); count_k = len(state["seen_kalshi_urls"])
+        state["seen_urls"] = set(); state["seen_trending_urls"] = set(); state["seen_arb_urls"] = set(); state["seen_cross_urls"] = set(); state["seen_kalshi_urls"] = set(); state["trending_volumes"] = {}
+        await q.edit_message_text(f"🔄 {count} ta oddiy, {count_t} ta trending, {count_a} ta ichki, {count_c} ta cross va {count_k} ta Kalshi URL tozalandi.", parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "trending_menu": await q.edit_message_text("🔥 <b>Trending & Kategoriyalar Sozlamalari</b>\n\nBu bo'limda siz tanlangan kategoriyalar bo'yicha hajmi yuqori bo'lgan (tez va ko'p pul kirayotgan) savdolarni kuzatishni sozlashingiz mumkin.", parse_mode="HTML", reply_markup=trending_keyboard())
     elif data == "toggle_trending": state["trending_enabled"] = not state["trending_enabled"]; await q.edit_message_text("🔥 Trending sozlamalari:", reply_markup=trending_keyboard())
     elif data == "set_min_vol": await q.edit_message_text(f"💰 <b>Minimal 24s hajmni tanlang:</b>\n\nHozirgi: ${state['min_volume_24h']:,}", parse_mode="HTML", reply_markup=volume_keyboard())
@@ -804,6 +869,7 @@ async def post_init(app):
 
 def main():
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
+    app.add_error_handler(error_handler)
     app.add_handler(CommandHandler("start",  cmd_start))
     app.add_handler(CommandHandler("menu",   cmd_menu))
     app.add_handler(CallbackQueryHandler(button_handler))
