@@ -18,10 +18,9 @@ from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler, ContextTypes
 )
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
-# Use environment variables if possible, or keep as is if user specifically requires
 BOT_TOKEN  = os.environ.get("BOT_TOKEN", "7256069971:AAHNTBZZipJI9mF1K1lRyNiQb2n7qEEDEDY")
 CHAT_ID    = int(os.environ.get("CHAT_ID", 798283148))
 GEOCODE_CACHE_FILE = "geocode_cache.json"
@@ -31,7 +30,7 @@ GEOCODE_CACHE_FILE = "geocode_cache.json"
 state = {
     "running": False,
     "interval": 60,
-    "limit": 500,
+    "limit": 1000,
     "yes_min": 0.30,
     "yes_max": 0.40,
     "no_min":  0.55,
@@ -264,18 +263,22 @@ async def fetch_markets(client):
     try:
         r = await client.get(url, timeout=15)
         r.raise_for_status()
-        return r.json()
+        markets = r.json()
+        logging.info(f"Fetched {len(markets)} markets from Polymarket")
+        return markets
     except Exception as e:
         logging.error(f"Polymarket fetch error: {e}")
         return []
 
 async def fetch_myriad_markets(client):
-    url = f"https://api-v2.myriadprotocol.com/markets?state=open&limit=100"
+    url = f"https://api-v2.myriadprotocol.com/markets?state=open&limit=1000"
     try:
         r = await client.get(url, timeout=15)
         r.raise_for_status()
         data = r.json()
-        return data.get('data', [])
+        markets = data.get('data', [])
+        logging.info(f"Fetched {len(markets)} markets from Myriad")
+        return markets
     except Exception as e:
         logging.error(f"Myriad fetch error: {e}")
         return []
@@ -497,73 +500,66 @@ def build_arbitrage_message(opportunities):
     return "\n".join(lines)
 
 def normalize_title(title):
-    # Basic normalization: lower, remove non-alphanumeric
-    return re.sub(r'[^a-z0-9]', '', title.lower())
+    title = title.lower()
+    fillers = ["will", "it", "the", "be", "on", "in", "by", "at", "to", "is", "a", "of"]
+    words = re.findall(r'\w+', title)
+    filtered = [w for w in words if w not in fillers]
+    return "".join(filtered)
 
 def find_cross_arbitrage(poly_markets, myriad_markets):
-    """
-    Finds price differences between Polymarket and Myriad for the same event.
-    """
     opportunities = []
-
-    # Pre-process myriad markets
-    myriad_map = {}
+    myriad_data = []
     for mm in myriad_markets:
-        norm = normalize_title(mm.get('title', ''))
-        myriad_map[norm] = mm
+        myriad_data.append({
+            'norm': normalize_title(mm.get('title', '')),
+            'market': mm,
+            'outcomes': {normalize_title(o.get('title', '')): o for o in mm.get('outcomes', [])}
+        })
 
     for pm in poly_markets:
         try:
-            p_question = pm.get('question', '')
-            norm_p = normalize_title(p_question)
+            p_q = pm.get('question', '')
+            norm_p = normalize_title(p_q)
 
-            if norm_p in myriad_map:
-                mm = myriad_map[norm_p]
-
-                # Get prices
+            # 1. Direct Match
+            match = next((m for m in myriad_data if m['norm'] == norm_p), None)
+            if match:
+                mm = match['market']
                 p_prices = parse_json_field(pm.get('outcomePrices'))
-                m_outcomes = mm.get('outcomes', [])
+                if p_prices and len(p_prices) >= 2:
+                    p_yes = float(p_prices[0])
+                    m_yes_obj = match['outcomes'].get(normalize_title("Yes")) or (mm.get('outcomes') or [{}])[0]
+                    m_yes = float(m_yes_obj.get('price', 0))
+                    diff = abs(p_yes - m_yes)
+                    if diff > state.get("cross_threshold", 0.05):
+                        opportunities.append({"question": p_q, "p_yes": p_yes, "m_yes": m_yes, "diff": diff,
+                            "url_p": f"https://polymarket.com/market/{pm.get('slug', '')}",
+                            "url_m": f"https://myriad.markets/markets/{mm.get('slug', '')}"})
 
-                if not p_prices or len(p_prices) < 2 or len(m_outcomes) < 2:
-                    continue
-
-                p_yes = float(p_prices[0])
-                m_yes = float(m_outcomes[0].get('price', 0))
-
-                diff = abs(p_yes - m_yes)
-                if diff > state.get("cross_threshold", 0.05):
-                    # Potential arbitrage: Buy lower on one, higher (or NO) on other
-                    # For simplicity, just report the price gap
-                    slug_p = pm.get('slug') or ''
-                    murl_p = f"https://polymarket.com/market/{slug_p}"
-                    murl_m = f"https://myriad.markets/markets/{mm.get('slug', '')}"
-
-                    opportunities.append({
-                        "question": p_question,
-                        "p_yes": p_yes,
-                        "m_yes": m_yes,
-                        "diff": diff,
-                        "url_p": murl_p,
-                        "url_m": murl_m
-                    })
-        except Exception:
-            continue
-
+            # 2. Binary vs Categorical Match
+            else:
+                for md in myriad_data:
+                    if md['norm'] in norm_p or norm_p in md['norm']:
+                        for o_norm, o_obj in md['outcomes'].items():
+                            if (o_norm in norm_p and len(o_norm) > 2) or (o_norm != "" and o_norm == norm_p):
+                                p_prices = parse_json_field(pm.get('outcomePrices'))
+                                if p_prices and len(p_prices) >= 2:
+                                    p_yes = float(p_prices[0])
+                                    m_yes = float(o_obj.get('price', 0))
+                                    diff = abs(p_yes - m_yes)
+                                    if diff > state.get("cross_threshold", 0.05):
+                                        opportunities.append({"question": p_q, "p_yes": p_yes, "m_yes": m_yes, "diff": diff,
+                                            "url_p": f"https://polymarket.com/market/{pm.get('slug', '')}",
+                                            "url_m": f"https://myriad.markets/markets/{md['market'].get('slug', '')}"})
+                                break
+        except Exception: continue
     return opportunities
 
 def build_cross_message(opportunities):
     lines = ["🌐 <b>Platformalar-aro Arbitraj (Poly vs Myriad)</b>\n"]
     for o in opportunities:
-        better_platform = "Polymarket" if o['p_yes'] < o['m_yes'] else "Myriad"
-        lines.append(
-            f"<b>{o['question']}</b>\n"
-            f"🔹 Poly YES: <b>{o['p_yes']:.2f}</b>\n"
-            f"🔸 Myriad YES: <b>{o['m_yes']:.2f}</b>\n"
-            f"📊 Farq: <b>{o['diff']*100:.1f}%</b>\n\n"
-            f"👉 {better_platform}'da arzonroq!\n"
-            f"🔗 <a href=\"{o['url_p']}\">Polymarket</a> | <a href=\"{o['url_m']}\">Myriad</a>\n"
-            f"──────────────────"
-        )
+        better = "Polymarket" if o['p_yes'] < o['m_yes'] else "Myriad"
+        lines.append(f"<b>{o['question']}</b>\n🔹 Poly YES: <b>{o['p_yes']:.2f}</b>\n🔸 Myriad YES: <b>{o['m_yes']:.2f}</b>\n📊 Farq: <b>{o['diff']*100:.1f}%</b>\n\n👉 {better}'da arzonroq!\n🔗 <a href=\"{o['url_p']}\">Polymarket</a> | <a href=\"{o['url_m']}\">Myriad</a>\n──────────────────")
     return "\n".join(lines)
 
 async def monitor_loop(app):
@@ -573,29 +569,23 @@ async def monitor_loop(app):
                 markets = await fetch_markets(client)
                 myriad_markets = await fetch_myriad_markets(client)
 
-                # 0. Cross-platform Arbitraj
                 cross_arbs = find_cross_arbitrage(markets, myriad_markets)
                 new_cross = [o for o in cross_arbs if o['url_p'] not in state["seen_cross_urls"]]
                 if new_cross:
                     state["seen_cross_urls"].update(o['url_p'] for o in new_cross)
                     await send_tg(app, build_cross_message(new_cross))
 
-                # 1. Arbitraj qidirish
                 arbs = find_internal_arbitrage(markets)
                 new_arbs = [o for o in arbs if o['url'] not in state["seen_arb_urls"]]
                 if new_arbs:
                     state["seen_arb_urls"].update(o['url'] for o in new_arbs)
                     await send_tg(app, build_arbitrage_message(new_arbs))
 
-                # 2. Ob-havo tahlili
                 weather_results = []
                 weather_urls_processed = set()
                 for m in markets:
-                    slug = m.get('slug') or ''
-                    gs = m.get('groupSlug') or ''
-                    murl = f"https://polymarket.com/event/{gs}" if gs else (f"https://polymarket.com/market/{slug}" if slug else "")
-                    if not murl or murl in state["seen_urls"]:
-                        continue
+                    murl = f"https://polymarket.com/market/{m.get('slug', '')}"
+                    if murl in state["seen_urls"]: continue
                     res = await process_weather_market(client, m)
                     if res:
                         weather_results.append(res)
@@ -604,7 +594,6 @@ async def monitor_loop(app):
                     state["seen_urls"].update(weather_urls_processed)
                     await send_tg(app, build_weather_message(weather_results))
 
-                # 3. Standart filtr
                 filtered = filter_markets(markets)
                 state["last_update"] = time.strftime('%H:%M:%S')
                 state["last_count"]  = len(filtered)
@@ -613,7 +602,6 @@ async def monitor_loop(app):
                     state["seen_urls"].update(m['url'] for m in new_markets)
                     await send_tg(app, build_message(new_markets))
 
-                # 4. Trending filtr
                 trending = filter_trending_markets(markets)
                 trending_to_alert = []
                 for m in trending:
