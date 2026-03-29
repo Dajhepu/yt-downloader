@@ -46,7 +46,9 @@ state = {
     "active_categories": ["Geopolitics", "Finance", "Iran", "Politics", "Sports", "Economy", "Elections", "Weather", "Mentions", "Crypto"],
     "seen_trending_urls": set(),
     "seen_arb_urls": set(),
+    "seen_cross_urls": set(),
     "arb_threshold": 0.98,
+    "cross_threshold": 0.05,
     "trending_volumes": {}, # url -> last_alert_vol
 }
 
@@ -264,7 +266,18 @@ async def fetch_markets(client):
         r.raise_for_status()
         return r.json()
     except Exception as e:
-        logging.error(f"Market fetch error: {e}")
+        logging.error(f"Polymarket fetch error: {e}")
+        return []
+
+async def fetch_myriad_markets(client):
+    url = f"https://api-v2.myriadprotocol.com/markets?state=open&limit=100"
+    try:
+        r = await client.get(url, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        return data.get('data', [])
+    except Exception as e:
+        logging.error(f"Myriad fetch error: {e}")
         return []
 
 def filter_trending_markets(markets):
@@ -469,7 +482,7 @@ def find_internal_arbitrage(markets):
     return opportunities
 
 def build_arbitrage_message(opportunities):
-    lines = ["⚖️ <b>Arbitraj Imkoniyati Topildi!</b>\n"]
+    lines = ["⚖️ <b>Ichki Arbitraj Imkoniyati</b>\n"]
     for o in opportunities:
         price_lines = ""
         for i, outcome in enumerate(o['outcomes']):
@@ -483,11 +496,89 @@ def build_arbitrage_message(opportunities):
                      f"──────────────────")
     return "\n".join(lines)
 
+def normalize_title(title):
+    # Basic normalization: lower, remove non-alphanumeric
+    return re.sub(r'[^a-z0-9]', '', title.lower())
+
+def find_cross_arbitrage(poly_markets, myriad_markets):
+    """
+    Finds price differences between Polymarket and Myriad for the same event.
+    """
+    opportunities = []
+
+    # Pre-process myriad markets
+    myriad_map = {}
+    for mm in myriad_markets:
+        norm = normalize_title(mm.get('title', ''))
+        myriad_map[norm] = mm
+
+    for pm in poly_markets:
+        try:
+            p_question = pm.get('question', '')
+            norm_p = normalize_title(p_question)
+
+            if norm_p in myriad_map:
+                mm = myriad_map[norm_p]
+
+                # Get prices
+                p_prices = parse_json_field(pm.get('outcomePrices'))
+                m_outcomes = mm.get('outcomes', [])
+
+                if not p_prices or len(p_prices) < 2 or len(m_outcomes) < 2:
+                    continue
+
+                p_yes = float(p_prices[0])
+                m_yes = float(m_outcomes[0].get('price', 0))
+
+                diff = abs(p_yes - m_yes)
+                if diff > state.get("cross_threshold", 0.05):
+                    # Potential arbitrage: Buy lower on one, higher (or NO) on other
+                    # For simplicity, just report the price gap
+                    slug_p = pm.get('slug') or ''
+                    murl_p = f"https://polymarket.com/market/{slug_p}"
+                    murl_m = f"https://myriad.markets/markets/{mm.get('slug', '')}"
+
+                    opportunities.append({
+                        "question": p_question,
+                        "p_yes": p_yes,
+                        "m_yes": m_yes,
+                        "diff": diff,
+                        "url_p": murl_p,
+                        "url_m": murl_m
+                    })
+        except Exception:
+            continue
+
+    return opportunities
+
+def build_cross_message(opportunities):
+    lines = ["🌐 <b>Platformalar-aro Arbitraj (Poly vs Myriad)</b>\n"]
+    for o in opportunities:
+        better_platform = "Polymarket" if o['p_yes'] < o['m_yes'] else "Myriad"
+        lines.append(
+            f"<b>{o['question']}</b>\n"
+            f"🔹 Poly YES: <b>{o['p_yes']:.2f}</b>\n"
+            f"🔸 Myriad YES: <b>{o['m_yes']:.2f}</b>\n"
+            f"📊 Farq: <b>{o['diff']*100:.1f}%</b>\n\n"
+            f"👉 {better_platform}'da arzonroq!\n"
+            f"🔗 <a href=\"{o['url_p']}\">Polymarket</a> | <a href=\"{o['url_m']}\">Myriad</a>\n"
+            f"──────────────────"
+        )
+    return "\n".join(lines)
+
 async def monitor_loop(app):
     async with httpx.AsyncClient() as client:
         while True:
             if state["running"]:
-                markets  = await fetch_markets(client)
+                markets = await fetch_markets(client)
+                myriad_markets = await fetch_myriad_markets(client)
+
+                # 0. Cross-platform Arbitraj
+                cross_arbs = find_cross_arbitrage(markets, myriad_markets)
+                new_cross = [o for o in cross_arbs if o['url_p'] not in state["seen_cross_urls"]]
+                if new_cross:
+                    state["seen_cross_urls"].update(o['url_p'] for o in new_cross)
+                    await send_tg(app, build_cross_message(new_cross))
 
                 # 1. Arbitraj qidirish
                 arbs = find_internal_arbitrage(markets)
@@ -609,7 +700,8 @@ def weather_model_keyboard():
 
 def arb_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"Chegara: {state['arb_threshold']*100:.1f}%", callback_data="set_arb_threshold")],
+        [InlineKeyboardButton(f"Ichki: {state['arb_threshold']*100:.1f}%", callback_data="set_arb_threshold")],
+        [InlineKeyboardButton(f"Cross: {state['cross_threshold']*100:.1f}%", callback_data="set_cross_threshold")],
         [InlineKeyboardButton("◀️ Orqaga", callback_data="back")]
     ])
 
@@ -618,6 +710,14 @@ def arb_threshold_keyboard():
     rows = []
     for label, val in thresholds:
         rows.append([InlineKeyboardButton(label, callback_data=f"arbt_{val}")])
+    rows.append([InlineKeyboardButton("◀️ Orqaga", callback_data="arb_menu")])
+    return InlineKeyboardMarkup(rows)
+
+def cross_threshold_keyboard():
+    thresholds = [("2%", 0.02), ("3%", 0.03), ("5%", 0.05), ("7%", 0.07), ("10%", 0.10)]
+    rows = []
+    for label, val in thresholds:
+        rows.append([InlineKeyboardButton(label, callback_data=f"cth_{val}")])
     rows.append([InlineKeyboardButton("◀️ Orqaga", callback_data="arb_menu")])
     return InlineKeyboardMarkup(rows)
 
@@ -632,7 +732,7 @@ async def cmd_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query; data = q.data; await q.answer()
     if data == "start_mon":
-        state["running"] = True; state["seen_urls"] = set(); state["seen_trending_urls"] = set(); state["seen_arb_urls"] = set(); state["trending_volumes"] = {}
+        state["running"] = True; state["seen_urls"] = set(); state["seen_trending_urls"] = set(); state["seen_arb_urls"] = set(); state["seen_cross_urls"] = set(); state["trending_volumes"] = {}
         await q.edit_message_text(f"▶️ <b>Monitoring boshlandi!</b>\nHar {state['interval']} soniyada skanirlanadi.", parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "stop_mon":
         state["running"] = False; await q.edit_message_text("⏹ <b>Monitoring to'xtatildi.</b>", parse_mode="HTML", reply_markup=main_keyboard())
@@ -663,9 +763,9 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data == "set_time": await q.edit_message_text("📅 Savdo tugash vaqt oraliqini tanlang:", reply_markup=time_keyboard())
     elif data.startswith("time_"): state["time_filter"] = data.split("_")[1]; await q.edit_message_text(f"✅ Davr filtri <b>{state['time_filter'].upper()}</b> ga o'zgartirildi.", parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "clear_seen":
-        count = len(state["seen_urls"]); count_t = len(state["seen_trending_urls"]); count_a = len(state["seen_arb_urls"])
-        state["seen_urls"] = set(); state["seen_trending_urls"] = set(); state["seen_arb_urls"] = set(); state["trending_volumes"] = {}
-        await q.edit_message_text(f"🔄 {count} ta oddiy, {count_t} ta trending va {count_a} ta arbitraj URL tozalandi. Keyingi skanda hammasi qayta yuboriladi.", parse_mode="HTML", reply_markup=main_keyboard())
+        count = len(state["seen_urls"]); count_t = len(state["seen_trending_urls"]); count_a = len(state["seen_arb_urls"]); count_c = len(state["seen_cross_urls"])
+        state["seen_urls"] = set(); state["seen_trending_urls"] = set(); state["seen_arb_urls"] = set(); state["seen_cross_urls"] = set(); state["trending_volumes"] = {}
+        await q.edit_message_text(f"🔄 {count} ta oddiy, {count_t} ta trending, {count_a} ta ichki va {count_c} ta cross arbitraj URL tozalandi. Keyingi skanda hammasi qayta yuboriladi.", parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "trending_menu": await q.edit_message_text("🔥 <b>Trending & Kategoriyalar Sozlamalari</b>\n\nBu bo'limda siz tanlangan kategoriyalar bo'yicha hajmi yuqori bo'lgan (tez va ko'p pul kirayotgan) savdolarni kuzatishni sozlashingiz mumkin.", parse_mode="HTML", reply_markup=trending_keyboard())
     elif data == "toggle_trending": state["trending_enabled"] = not state["trending_enabled"]; await q.edit_message_text("🔥 Trending sozlamalari:", reply_markup=trending_keyboard())
     elif data == "set_min_vol": await q.edit_message_text(f"💰 <b>Minimal 24s hajmni tanlang:</b>\n\nHozirgi: ${state['min_volume_24h']:,}", parse_mode="HTML", reply_markup=volume_keyboard())
@@ -688,16 +788,23 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML", reply_markup=arb_keyboard())
 
     elif data == "set_arb_threshold":
-        await q.edit_message_text("⚖️ <b>Arbitraj chegarasini tanlang:</b>", parse_mode="HTML", reply_markup=arb_threshold_keyboard())
+        await q.edit_message_text("⚖️ <b>Ichki arbitraj chegarasini tanlang:</b>", parse_mode="HTML", reply_markup=arb_threshold_keyboard())
 
     elif data.startswith("arbt_"):
         state["arb_threshold"] = float(data.replace("arbt_", ""))
-        await q.edit_message_text(f"✅ Arbitraj chegarasi <b>{state['arb_threshold']*100:.1f}%</b> ga o'rnatildi.", parse_mode="HTML", reply_markup=arb_keyboard())
+        await q.edit_message_text(f"✅ Ichki arbitraj chegarasi <b>{state['arb_threshold']*100:.1f}%</b> ga o'rnatildi.", parse_mode="HTML", reply_markup=arb_keyboard())
+
+    elif data == "set_cross_threshold":
+        await q.edit_message_text("⚖️ <b>Cross-platform farq chegarasini tanlang:</b>", parse_mode="HTML", reply_markup=cross_threshold_keyboard())
+
+    elif data.startswith("cth_"):
+        state["cross_threshold"] = float(data.replace("cth_", ""))
+        await q.edit_message_text(f"✅ Cross farq chegarasi <b>{state['cross_threshold']*100:.1f}%</b> ga o'rnatildi.", parse_mode="HTML", reply_markup=arb_keyboard())
 
     elif data == "show_filters":
         trending_status = "✅ YOQILGAN" if state['trending_enabled'] else "❌ O'CHIRILGAN"
         cats = ', '.join(state['active_categories']) if state['active_categories'] else 'Yoq'
-        text = (f"📋 <b>Hozirgi filtrlar</b>\n\n✅ Yes:  {state['yes_min']*100:.0f}% – {state['yes_max']*100:.0f}%\n❌ No:   {state['no_min']*100:.0f}% – {state['no_max']*100:.0f}%\n📅 Davr:   {state['time_filter'].upper()}\n⏱ Interval: {state['interval']} soniya\n📦 Limit: {state['limit']} savdo\n\n🔥 Trending: {trending_status}\n💰 Min Hajm: ${state['min_volume_24h']:,}\n📂 Kategoriyalar: {cats}\n🌦 Ob-havo modeli: {state['weather_model'].upper()}\n⚖️ Arbitraj: {state['arb_threshold']*100:.1f}%")
+        text = (f"📋 <b>Hozirgi filtrlar</b>\n\n✅ Yes:  {state['yes_min']*100:.0f}% – {state['yes_max']*100:.0f}%\n❌ No:   {state['no_min']*100:.0f}% – {state['no_max']*100:.0f}%\n📅 Davr:   {state['time_filter'].upper()}\n⏱ Interval: {state['interval']} soniya\n📦 Limit: {state['limit']} savdo\n\n🔥 Trending: {trending_status}\n💰 Min Hajm: ${state['min_volume_24h']:,}\n📂 Kategoriyalar: {cats}\n🌦 Ob-havo modeli: {state['weather_model'].upper()}\n⚖️ Arbitraj: {state['arb_threshold']*100:.1f}%\n⚖️ Cross: {state['cross_threshold']*100:.1f}%")
         await q.edit_message_text(text, parse_mode="HTML", reply_markup=main_keyboard())
     elif data == "back": await q.edit_message_text("📋 Boshqaruv paneli:", reply_markup=main_keyboard())
 
