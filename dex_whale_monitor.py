@@ -17,16 +17,22 @@ from telegram.ext import (
 logging.basicConfig(level=logging.INFO)
 
 # ─── CONFIG ─────────────────────────────────────────────────────────────────
-# Professional tip: Use environment variables for sensitive data.
-BOT_TOKEN  = os.getenv("BOT_TOKEN", "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM")
-CHAT_ID    = int(os.getenv("CHAT_ID", "798283148"))
+# Use environment variables for sensitive data.
+BOT_TOKEN  = os.getenv("BOT_TOKEN")
+CHAT_ID    = os.getenv("CHAT_ID")
+if CHAT_ID: CHAT_ID = int(CHAT_ID)
 # ────────────────────────────────────────────────────────────────────────────
 
 state = {
     "client": None,
     "running": True,
-    "seen_pairs": set(),
+    "seen_whales": {}, # addr -> last_alert_time
     "waiting_for_ca": False,
+    "min_ratio": 0.3,
+    "min_buy_pressure": 0.55,
+    "min_liquidity": 10000,
+    "scan_interval": 60,
+    "waiting_for_setting": None, # 'ratio', 'pressure', 'liquidity', 'interval'
 }
 
 # ─── DEXSCREENER HELPERS ───────────────────────────────────────────────────
@@ -79,7 +85,10 @@ def analyze_whale_activity(pair):
 
         buy_ratio = buys / total_txns if total_txns > 0 else 0
 
-        if vol_mcap_ratio > 0.3 and buy_ratio > 0.55 and liquidity > 10000:
+        # Social links check (Verification of token quality)
+        has_socials = len(pair.get('info', {}).get('socials', [])) > 0
+
+        if vol_mcap_ratio > state["min_ratio"] and buy_ratio > state["min_buy_pressure"] and liquidity > state["min_liquidity"]:
             return {
                 'symbol': pair.get('baseToken', {}).get('symbol'),
                 'name': pair.get('baseToken', {}).get('name'),
@@ -90,7 +99,8 @@ def analyze_whale_activity(pair):
                 'buy_ratio': buy_ratio,
                 'url': pair.get('url'),
                 'address': pair.get('baseToken', {}).get('address'),
-                'chainId': pair.get('chainId')
+                'chainId': pair.get('chainId'),
+                'has_socials': has_socials
             }
     except:
         pass
@@ -104,7 +114,10 @@ async def monitor_dex(app):
             boosted = await fetch_latest_boosted()
             for token in boosted:
                 addr = token.get('tokenAddress')
-                if addr in state["seen_pairs"]: continue
+                last_alert = state["seen_whales"].get(addr, 0)
+
+                # Har 4 soatda faqat bir marta bir xil token uchun ogohlantirish
+                if time.time() - last_alert < 14400: continue
 
                 pairs = await fetch_token_pairs(addr)
                 if not pairs: continue
@@ -116,18 +129,19 @@ async def monitor_dex(app):
                 if analysis:
                     msg = build_whale_alert(analysis)
                     await send_tg(app, msg)
+                    state["seen_whales"][addr] = time.time()
 
-                state["seen_pairs"].add(addr)
-                # Xotirani tejash
-                if len(state["seen_pairs"]) > 1000:
-                    state["seen_pairs"] = set(list(state["seen_pairs"])[-500:])
+                # Xotirani tejash (1 oydan o'tganlarni o'chirish)
+                if len(state["seen_whales"]) > 2000:
+                    state["seen_whales"] = {k: v for k, v in list(state["seen_whales"].items())[-1000:]}
 
-        await asyncio.sleep(60)
+        await asyncio.sleep(state["scan_interval"])
 
 def build_whale_alert(data):
+    social_tag = "✅ Socials verified" if data['has_socials'] else "⚠️ No social info"
     return (
         f"<b>🐋 WHALE ALERT: {data['symbol']} ({data['chainId'].upper()})</b>\n\n"
-        f"💎 Token: {data['name']}\n"
+        f"💎 Token: {data['name']} [{social_tag}]\n"
         f"📊 Market Cap: <b>${data['mcap']:,.0f}</b>\n"
         f"💰 24s Hajm: <b>${data['vol24']:,.0f}</b>\n"
         f"🌊 Liquidity: <b>${data['liquidity']:,.0f}</b>\n\n"
@@ -149,6 +163,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("📊 Hozirgi Whale Trendlar", callback_data="check_now")],
         [InlineKeyboardButton("🔍 Token Whale Scan", callback_data="scan_prompt")],
+        [InlineKeyboardButton("⚙️ Sozlamalar", callback_data="settings")],
         [InlineKeyboardButton("📚 Whale Strategiyasi", callback_data="strategy")],
     ])
     text = (
@@ -161,6 +176,16 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text, parse_mode="HTML", reply_markup=kb)
     else:
         await update.callback_query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
+
+def settings_keyboard():
+    status = "🟢 Yoqilgan" if state["running"] else "🔴 O'chirilgan"
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"Monitor: {status}", callback_data="toggle_mon")],
+        [InlineKeyboardButton(f"Ratio: {state['min_ratio']}", callback_data="set_ratio"),
+         InlineKeyboardButton(f"Liquidity: {state['min_liquidity']}", callback_data="set_liq")],
+        [InlineKeyboardButton(f"Interval: {state['scan_interval']}s", callback_data="set_int")],
+        [InlineKeyboardButton("◀️ Orqaga", callback_data="back")]
+    ])
 
 async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -185,21 +210,63 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text("📝 Menga tekshirmoqchi bo'lgan token manzilingizni (CA) yuboring:")
         state["waiting_for_ca"] = True
 
+    elif q.data == "settings":
+        await q.edit_message_text("⚙️ <b>Bot Sozlamalari:</b>\n\nWhale aniqlash parametrlarini o'zgartiring:",
+                                  parse_mode="HTML", reply_markup=settings_keyboard())
+
+    elif q.data == "toggle_mon":
+        state["running"] = not state["running"]
+        await q.edit_message_reply_markup(reply_markup=settings_keyboard())
+
+    elif q.data == "set_ratio":
+        await q.edit_message_text("🔢 Yangi <b>Vol/MCap Ratio</b> ni yuboring (masalan: 0.5):", parse_mode="HTML")
+        state["waiting_for_setting"] = "ratio"
+
+    elif q.data == "set_liq":
+        await q.edit_message_text("💰 Minimal <b>Liquidity</b> ni yuboring (USD, masalan: 50000):", parse_mode="HTML")
+        state["waiting_for_setting"] = "liquidity"
+
+    elif q.data == "set_int":
+        await q.edit_message_text("⏱ Skanerlash <b>Interval</b> ini yuboring (soniya, masalan: 30):", parse_mode="HTML")
+        state["waiting_for_setting"] = "interval"
+
     elif q.data == "strategy":
         text = (
-            "<b>💡 Whale Tracker Strategiyasi:</b>\n\n"
+            "<b>💡 Whale Tracker & Copy Trading Strategiyasi:</b>\n\n"
             "1. <b>Vol/MCap Ratio</b>: Agar hajm market cap-ga nisbatan yuqori bo'lsa (0.3+), bu yirik o'yinchilar kirayotganini bildiradi.\n"
             "2. <b>Buy Pressure</b>: Sotib olishlar soni sotishlardan sezilarli ko'p bo'lishi kerak.\n"
-            "3. <b>Boosted Tokens</b>: DEXScreener'da pullik reklama qilingan tokenlar ko'pincha whalelar nishonida bo'ladi."
+            "3. <b>Social Check</b>: Whalelar kirayotgan tokenning Twitter/Telegrami faolligini tekshiring.\n\n"
+            "<b>⚠️ Professional Maslahat:</b>\n"
+            "Whale savdosini takrorlashdan oldin (Copy Trading), hamyonning oldingi savdolari "
+            "foydali bo'lganini (Win Rate) tekshiring. Whalelar ham ba'zida adashishi yoki "
+            "'exit liquidity' sifatida foydalanishi mumkin."
         )
         await q.edit_message_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Orqaga", callback_data="back")]]))
 
     elif q.data == "back":
         state["waiting_for_ca"] = False
+        state["waiting_for_setting"] = None
         await cmd_start(update, ctx)
 
 async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    if state.get("waiting_for_ca") and update.message.text:
+    text = update.message.text.strip()
+
+    if state.get("waiting_for_setting") and text:
+        setting = state["waiting_for_setting"]
+        state["waiting_for_setting"] = None
+        try:
+            val = float(text)
+            if setting == "ratio": state["min_ratio"] = val
+            elif setting == "liquidity": state["min_liquidity"] = val
+            elif setting == "interval": state["scan_interval"] = max(10, int(val))
+
+            await update.message.reply_text(f"✅ Sozlama yangilandi: <b>{setting}</b> = {val}",
+                                            parse_mode="HTML", reply_markup=settings_keyboard())
+        except ValueError:
+            await update.message.reply_text("❌ Xato: Faqat raqam yuboring.")
+        return
+
+    if state.get("waiting_for_ca") and text:
         ca = update.message.text.strip()
         state["waiting_for_ca"] = False
         await update.message.reply_text(f"🔍 Token tahlil qilinmoqda: <code>{ca}</code>", parse_mode="HTML")
