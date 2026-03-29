@@ -24,7 +24,7 @@ CHAT_ID    = int(os.getenv("CHAT_ID", "798283148"))
 
 state = {
     "client": None,
-    "running": False,
+    "running": True, # Avtomatik boshlash
     "interval": 60,
     "tracked_whales": [], # List of addresses
     "seen_trade_ids": set(),
@@ -71,6 +71,7 @@ async def monitor_whales(app):
     initialized_whales = set()
     while True:
         if state["running"] and state["tracked_whales"]:
+            logging.info(f"Skanirlanmoqda: {len(state['tracked_whales'])} ta whale hamyon...")
             for address in state["tracked_whales"]:
                 trades = await fetch_whale_trades(address)
                 name = state["whale_names"].get(address, address[:8])
@@ -187,6 +188,17 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def post_init(app):
     state["client"] = httpx.AsyncClient()
+
+    # Eng yaxshi 5 ta whaleni avtomatik qo'shish
+    logging.info("Top traderlarni qidirilmoqda...")
+    whales = await fetch_top_whales(limit=5)
+    for w in whales:
+        addr = w['proxyWallet']
+        if addr not in state["tracked_whales"]:
+            state["tracked_whales"].append(addr)
+            state["whale_names"][addr] = w.get('userName') or addr[:8]
+
+    logging.info(f"Monitoring boshlandi. {len(state['tracked_whales'])} ta whale kuzatilmoqda.")
     asyncio.create_task(monitor_whales(app))
 
 def main():
