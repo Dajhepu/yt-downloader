@@ -1,0 +1,55 @@
+
+╔══════════════════════════════════════════════════════╗
+║      WHALE TRACKER PRO  v2.0 — MAX INTELLIGENCE      ║
+╚══════════════════════════════════════════════════════╝
+  Multi-TF · SMC · Rug Detect · Backtest · Anti-Wash
+
+12:32:34 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:32:34 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+12:32:34 [INFO] Added job "WhaleTrackerBotV2.scan_once" to job store "default"
+12:32:34 [INFO] Scheduler started
+12:32:34 [INFO] Scheduler va Telegram bot ishga tushdi. Ctrl+C — to'xtatish.
+12:32:34 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:33:19 UTC)" (scheduled at 2026-03-30 12:32:34.230806+00:00)
+12:32:34 [INFO] 🔍 Skan #1...
+12:32:34 [INFO] Discovery: 30 ta profil topildi.
+12:32:34 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getMe "HTTP/1.1 200 OK"
+12:32:34 [INFO] Scheduler started
+12:32:34 [INFO] Application started
+12:32:34 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/deleteWebhook "HTTP/1.1 200 OK"
+12:32:40 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:32:40 [INFO] ✅ 🟢 T3 [BUY] Ishonchlilik: 100/100
+12:32:42 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:32:42 [INFO] ✅ 🟢 ARB [BUY] Ishonchlilik: 94/100
+12:32:43 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:32:43 [INFO] ✅ 🐋 SOL [ACCUMULATION] Ishonchlilik: 80/100
+12:32:45 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:32:45 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 3 | Jami: 3
+12:32:45 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:33:19 UTC)" executed successfully
+12:32:55 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:33:05 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:33:15 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:33:19 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:34:04 UTC)" (scheduled at 2026-03-30 12:33:19.230806+00:00)
+12:33:19 [INFO] 🔍 Skan #2...
+12:33:19 [INFO] Discovery: 30 ta profil topildi.
+12:33:25 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:33:25 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:34:04 UTC)" executed successfully
+12:33:25 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:33:35 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:33:45 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:33:55 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:34:04 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:34:49 UTC)" (scheduled at 2026-03-30 12:34:04.230806+00:00)
+12:34:04 [INFO] 🔍 Skan #3...
+12:34:04 [INFO] Discovery: 30 ta profil topildi.
+12:34:06 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:34:10 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:34:10 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:34:49 UTC)" executed successfully
+12:34:16 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:34:26 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:34:36 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:34:46 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:34:49 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:35:34 UTC)" (scheduled at 2026-03-30 12:34:49.230806+00:00)
+12:34:49 [INFO] 🔍 Skan #4...
+12:34:49 [INFO] Discovery: 30 ta profil topildi.
+12:34:55 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:34:55 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:35:34 UTC)" executed successfully
+12:34:56 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"

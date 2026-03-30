@@ -1,0 +1,724 @@
+12:24:04 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:24:04 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+12:24:04 [INFO] Added job "WhaleTrackerBotV2.scan_once" to job store "default"
+12:24:04 [INFO] Scheduler started
+12:24:04 [INFO] Scheduler va Telegram bot ishga tushdi. Ctrl+C — to'xtatish.
+12:24:04 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:24:49 UTC)" (scheduled at 2026-03-30 12:24:04.953655+00:00)
+12:24:04 [INFO] 🔍 Skan #1...
+12:24:05 [INFO] Discovery: 30 ta profil topildi.
+12:24:05 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getMe "HTTP/1.1 200 OK"
+12:24:05 [INFO] Scheduler started
+12:24:05 [INFO] Application started
+12:24:05 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/deleteWebhook "HTTP/1.1 200 OK"
+12:24:11 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 400 Bad Request"
+12:24:11 [ERROR] Telegram yuborish xatosi: Can't parse entities: character '(' is reserved and must be escaped with the preceding '\'
+12:24:11 [INFO] [32m✅[0m 🟢 T3 [BUY] Ishonchlilik: 100/100
+12:24:13 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 400 Bad Request"
+12:24:13 [ERROR] Telegram yuborish xatosi: Can't parse entities: character '(' is reserved and must be escaped with the preceding '\'
+12:24:13 [INFO] [32m✅[0m 🟢 ARB [BUY] Ishonchlilik: 84/100
+12:24:14 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 400 Bad Request"
+12:24:14 [ERROR] Telegram yuborish xatosi: Can't parse entities: character '(' is reserved and must be escaped with the preceding '\'
+12:24:14 [INFO] [32m✅[0m 🐋 SOL [ACCUMULATION] Ishonchlilik: 80/100
+12:24:15 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:24:16 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 3 | Jami: 3
+12:24:16 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:24:49 UTC)" executed successfully
+12:24:25 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:24:36 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:24:46 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:24:49 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:25:34 UTC)" (scheduled at 2026-03-30 12:24:49.953655+00:00)
+12:24:49 [INFO] 🔍 Skan #2...
+12:24:50 [INFO] Discovery: 30 ta profil topildi.
+12:24:56 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:24:56 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:25:34 UTC)" executed successfully
+12:24:56 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:25:06 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:25:16 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:25:26 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:25:34 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:26:19 UTC)" (scheduled at 2026-03-30 12:25:34.953655+00:00)
+12:25:34 [INFO] 🔍 Skan #3...
+12:25:35 [INFO] Discovery: 30 ta profil topildi.
+12:25:36 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:25:40 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:25:40 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:26:19 UTC)" executed successfully
+12:25:46 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:25:56 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:25:56 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+12:25:56 [INFO] Added job "WhaleTrackerBotV2.scan_once" to job store "default"
+12:25:56 [INFO] Scheduler started
+12:25:56 [INFO] Scheduler va Telegram bot ishga tushdi. Ctrl+C — to'xtatish.
+12:25:56 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:26:41 UTC)" (scheduled at 2026-03-30 12:25:56.584414+00:00)
+12:25:56 [INFO] 🔍 Skan #1...
+12:25:56 [INFO] Discovery: 30 ta profil topildi.
+12:25:56 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getMe "HTTP/1.1 200 OK"
+12:25:56 [INFO] Scheduler started
+12:25:56 [INFO] Application started
+12:25:57 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/deleteWebhook "HTTP/1.1 200 OK"
+12:26:02 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 400 Bad Request"
+12:26:02 [ERROR] Telegram yuborish xatosi: Can't parse entities: character '.' is reserved and must be escaped with the preceding '\'
+12:26:02 [INFO] [32m✅[0m 🟢 T3 [BUY] Ishonchlilik: 100/100
+12:26:04 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 400 Bad Request"
+12:26:04 [ERROR] Telegram yuborish xatosi: Can't parse entities: character '.' is reserved and must be escaped with the preceding '\'
+12:26:04 [INFO] [32m✅[0m 🟢 ARB [BUY] Ishonchlilik: 84/100
+12:26:05 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 400 Bad Request"
+12:26:05 [ERROR] Telegram yuborish xatosi: Can't parse entities: character '(' is reserved and must be escaped with the preceding '\'
+12:26:05 [INFO] [32m✅[0m 🐋 SOL [ACCUMULATION] Ishonchlilik: 80/100
+12:26:07 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:26:07 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 3 | Jami: 3
+12:26:07 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:26:41 UTC)" executed successfully
+12:26:17 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:26:27 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:26:37 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:26:41 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:27:26 UTC)" (scheduled at 2026-03-30 12:26:41.584414+00:00)
+12:26:41 [INFO] 🔍 Skan #2...
+12:26:41 [INFO] Discovery: 30 ta profil topildi.
+12:26:47 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:26:47 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:27:26 UTC)" executed successfully
+12:26:47 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:26:57 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:27:08 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:27:18 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:27:26 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:28:11 UTC)" (scheduled at 2026-03-30 12:27:26.584414+00:00)
+12:27:26 [INFO] 🔍 Skan #3...
+12:27:26 [INFO] Discovery: 30 ta profil topildi.
+12:27:28 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:27:32 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:27:32 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:28:11 UTC)" executed successfully
+12:27:38 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:27:48 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:28:02 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:28:02 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+12:28:02 [INFO] Added job "WhaleTrackerBotV2.scan_once" to job store "default"
+12:28:02 [INFO] Scheduler started
+12:28:02 [INFO] Scheduler va Telegram bot ishga tushdi. Ctrl+C — to'xtatish.
+12:28:02 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:28:47 UTC)" (scheduled at 2026-03-30 12:28:02.296447+00:00)
+12:28:02 [INFO] 🔍 Skan #1...
+12:28:02 [INFO] Discovery: 30 ta profil topildi.
+12:28:02 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getMe "HTTP/1.1 200 OK"
+12:28:02 [INFO] Scheduler started
+12:28:02 [INFO] Application started
+12:28:02 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/deleteWebhook "HTTP/1.1 200 OK"
+12:28:08 [ERROR] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:28:47 UTC)" raised an exception
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/apscheduler/executors/base.py", line 181, in run_coroutine_job
+    retval = await job.func(*job.args, **job.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/whale_tracker_v2.py", line 1017, in scan_once
+    msg = format_signal(sig)
+          ^^^^^^^^^^^^^^^^^^
+  File "/app/whale_tracker_v2.py", line 811, in format_signal
+    cf_str += f"  {i}. {html.escape(f)}\n"
+                        ^^^^
+NameError: name 'html' is not defined. Did you forget to import 'html'
+12:28:13 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:28:23 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:28:33 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:28:43 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:28:47 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:29:32 UTC)" (scheduled at 2026-03-30 12:28:47.296447+00:00)
+12:28:47 [INFO] 🔍 Skan #2...
+12:28:47 [INFO] Discovery: 30 ta profil topildi.
+12:28:53 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:28:53 [ERROR] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:29:32 UTC)" raised an exception
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/apscheduler/executors/base.py", line 181, in run_coroutine_job
+    retval = await job.func(*job.args, **job.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/whale_tracker_v2.py", line 1017, in scan_once
+    msg = format_signal(sig)
+          ^^^^^^^^^^^^^^^^^^
+  File "/app/whale_tracker_v2.py", line 811, in format_signal
+    cf_str += f"  {i}. {html.escape(f)}\n"
+                        ^^^^
+NameError: name 'html' is not defined. Did you forget to import 'html'
+12:29:03 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:29:13 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:29:23 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:30:53 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:30:54 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+12:30:54 [INFO] Added job "WhaleTrackerBotV2.scan_once" to job store "default"
+12:30:54 [INFO] Scheduler started
+12:30:54 [INFO] Scheduler va Telegram bot ishga tushdi. Ctrl+C — to'xtatish.
+12:30:54 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:31:39 UTC)" (scheduled at 2026-03-30 12:30:54.069035+00:00)
+12:30:54 [INFO] 🔍 Skan #1...
+12:30:54 [INFO] Discovery: 30 ta profil topildi.
+12:30:54 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getMe "HTTP/1.1 200 OK"
+12:30:54 [INFO] Scheduler started
+12:30:54 [INFO] Application started
+12:30:54 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/deleteWebhook "HTTP/1.1 200 OK"
+12:30:59 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:30:59 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+12:30:59 [INFO] Added job "WhaleTrackerBotV2.scan_once" to job store "default"
+12:30:59 [INFO] Scheduler started
+12:30:59 [INFO] Scheduler va Telegram bot ishga tushdi. Ctrl+C — to'xtatish.
+12:30:59 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:31:44 UTC)" (scheduled at 2026-03-30 12:30:59.979337+00:00)
+12:30:59 [INFO] 🔍 Skan #1...
+12:31:00 [INFO] Discovery: 30 ta profil topildi.
+12:31:00 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getMe "HTTP/1.1 200 OK"
+12:31:00 [INFO] Scheduler started
+12:31:00 [INFO] Application started
+12:31:00 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/deleteWebhook "HTTP/1.1 200 OK"
+12:31:00 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:31:00 [INFO] [32m✅[0m 🟢 T3 [BUY] Ishonchlilik: 100/100
+12:31:00 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:00 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:31:02 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:31:02 [INFO] [32m✅[0m 🟢 ARB [BUY] Ishonchlilik: 84/100
+12:31:03 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:31:03 [INFO] [32m✅[0m 🐋 SOL [ACCUMULATION] Ishonchlilik: 80/100
+12:31:04 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:04 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:31:05 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 3 | Jami: 3
+12:31:05 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:31:39 UTC)" executed successfully
+12:31:06 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:31:06 [INFO] [32m✅[0m 🟢 T3 [BUY] Ishonchlilik: 100/100
+12:31:06 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:06 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:31:07 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:31:07 [INFO] [32m✅[0m 🟢 ARB [BUY] Ishonchlilik: 84/100
+12:31:09 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:31:09 [INFO] [32m✅[0m 🐋 SOL [ACCUMULATION] Ishonchlilik: 80/100
+12:31:10 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:10 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:31:10 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 3 | Jami: 3
+12:31:10 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:31:44 UTC)" executed successfully
+12:31:12 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:12 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:31:17 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:17 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:31:20 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:20 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:31:23 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:23 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:31:27 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:27 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:31:32 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:32 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:31:37 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:37 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:31:39 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:32:24 UTC)" (scheduled at 2026-03-30 12:31:39.069035+00:00)
+12:31:39 [INFO] 🔍 Skan #2...
+12:31:39 [INFO] Discovery: 30 ta profil topildi.
+12:31:44 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:31:44 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:32:24 UTC)" executed successfully
+12:31:44 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:32:29 UTC)" (scheduled at 2026-03-30 12:31:44.979337+00:00)
+12:31:44 [INFO] 🔍 Skan #2...
+12:31:45 [INFO] Discovery: 30 ta profil topildi.
+12:31:45 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:45 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:31:51 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:31:51 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:32:29 UTC)" executed successfully
+12:31:53 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:31:53 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:32:03 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:32:05 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:32:05 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:32:09 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:32:09 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:32:16 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:32:24 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:33:09 UTC)" (scheduled at 2026-03-30 12:32:24.069035+00:00)
+12:32:24 [INFO] 🔍 Skan #3...
+12:32:24 [INFO] Discovery: 30 ta profil topildi.
+12:32:26 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:32:27 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 409 Conflict"
+12:32:27 [ERROR] Exception happened while polling for updates.
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_utils/networkloop.py", line 154, in do_action
+    action_cb_task.result()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_updater.py", line 340, in polling_action_cb
+    updates = await self.bot.get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 672, in get_updates
+    updates = await super().get_updates(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 4865, in get_updates
+    await self._post(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/telegram/request/_baserequest.py", line 375, in _request_wrapper
+    raise exception
+telegram.error.Conflict: Conflict: terminated by other getUpdates request; make sure that only one bot instance is running
+12:32:29 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:33:14 UTC)" (scheduled at 2026-03-30 12:32:29.979337+00:00)
+12:32:29 [INFO] 🔍 Skan #3...
+12:32:30 [INFO] Discovery: 30 ta profil topildi.
+12:32:30 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:32:30 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:33:09 UTC)" executed successfully
+12:32:34 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:32:34 [INFO] Adding job tentatively -- it will be properly scheduled when the scheduler starts
+12:32:34 [INFO] Added job "WhaleTrackerBotV2.scan_once" to job store "default"
+12:32:34 [INFO] Scheduler started
+12:32:34 [INFO] Scheduler va Telegram bot ishga tushdi. Ctrl+C — to'xtatish.
+12:32:34 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:33:19 UTC)" (scheduled at 2026-03-30 12:32:34.230806+00:00)
+12:32:34 [INFO] 🔍 Skan #1...
+12:32:34 [INFO] Discovery: 30 ta profil topildi.
+12:32:34 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getMe "HTTP/1.1 200 OK"
+12:32:34 [INFO] Scheduler started
+12:32:34 [INFO] Application started
+12:32:34 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/deleteWebhook "HTTP/1.1 200 OK"
+12:32:40 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:32:40 [INFO] [32m✅[0m 🟢 T3 [BUY] Ishonchlilik: 100/100
+12:32:42 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:32:42 [INFO] [32m✅[0m 🟢 ARB [BUY] Ishonchlilik: 94/100
+12:32:43 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/sendMessage "HTTP/1.1 200 OK"
+12:32:43 [INFO] [32m✅[0m 🐋 SOL [ACCUMULATION] Ishonchlilik: 80/100
+12:32:45 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:32:45 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 3 | Jami: 3
+12:32:45 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:33:19 UTC)" executed successfully
+12:32:55 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:33:05 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:33:15 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:33:19 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:34:04 UTC)" (scheduled at 2026-03-30 12:33:19.230806+00:00)
+12:33:19 [INFO] 🔍 Skan #2...
+12:33:19 [INFO] Discovery: 30 ta profil topildi.
+12:33:25 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:33:25 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:34:04 UTC)" executed successfully
+12:33:25 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:33:35 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:33:45 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:33:55 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:34:04 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:34:49 UTC)" (scheduled at 2026-03-30 12:34:04.230806+00:00)
+12:34:04 [INFO] 🔍 Skan #3...
+12:34:04 [INFO] Discovery: 30 ta profil topildi.
+12:34:06 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:34:10 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:34:10 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:34:49 UTC)" executed successfully
+12:34:16 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:34:26 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:34:36 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:34:46 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"
+12:34:49 [INFO] Running job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:35:34 UTC)" (scheduled at 2026-03-30 12:34:49.230806+00:00)
+12:34:49 [INFO] 🔍 Skan #4...
+12:34:49 [INFO] Discovery: 30 ta profil topildi.
+12:34:55 [INFO] ✅ Skan tugadi | Snaps: 90 | Signallar: 0 | Jami: 3
+12:34:55 [INFO] Job "WhaleTrackerBotV2.scan_once (trigger: interval[0:00:45], next run at: 2026-03-30 12:35:34 UTC)" executed successfully
+12:34:56 [INFO] HTTP Request: POST https://api.telegram.org/bot8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM/getUpdates "HTTP/1.1 200 OK"

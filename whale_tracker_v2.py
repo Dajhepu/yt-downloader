@@ -29,10 +29,11 @@ import json
 import math
 import time
 import os
+import html
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, Any
 import aiohttp
 from colorama import Fore, Style, init
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -46,11 +47,12 @@ init(autoreset=True)
 #  SOZLAMALAR
 # ══════════════════════════════════════════════════════
 
-TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID")
+# NOTE: Defaults provided for environment-restricted setups like Pydroid 3.
+TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM")
+TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID", "798283148")
 
 MIN_USD_THRESHOLD   = 50_000
-SCAN_INTERVAL_SEC   = 60
+SCAN_INTERVAL_SEC   = 45
 MAX_SIGNALS_PER_HR  = 25
 MIN_CONFIDENCE      = 62        # Minimal ishonchlilik (0-100). 62+ = yuborish
 
@@ -85,7 +87,7 @@ class MarketSnapshot:
     token_symbol:   str
     token_name:     str
     chain:          str
-    dex:          str
+    dex:            str
     price_usd:      float
     market_cap:     float
     liquidity:      float
@@ -114,10 +116,10 @@ class SignalResult:
     confidence:         int             # 0-100
     signal_type:        str
     primary_reason:     str
-    confluence_factors: List[str]       # Bir vaqtda ishlayotgan signallar
-    risk_flags:         List[str]       # Xavf belgilari
+    confluence_factors: list[str]       # Bir vaqtda ishlayotgan signallar
+    risk_flags:         list[str]       # Xavf belgilari
     smc_pattern:        Optional[str]   # Smart Money pattern
-    timeframe_align:    Dict            # 5m/1h/6h/24h mosligi
+    timeframe_align:    dict            # 5m/1h/6h/24h mosligi
     backtest_winrate:   Optional[float] # Tarixiy to'g'rilik (%)
     risk_reward:        float           # Taxminiy R:R nisbati
     entry_suggestion:   float           # Taxminiy kirish narxi
@@ -166,28 +168,32 @@ class DexScreenerAPI:
             async with sess.get(url, timeout=aiohttp.ClientTimeout(total=15)) as r:
                 if r.status == 200:
                     return await r.json()
-                else:
-                    log.debug(f"API xatosi {url}: {r.status}")
         except Exception as e:
             log.debug(f"API xatosi {url}: {e}")
         return None
 
-    async def get_latest_profiles(self) -> List[Dict]:
-        """Discovery: Yaqinda faol bo'lgan tokenlarni topish"""
+    async def get_latest_profiles(self) -> list[dict]:
+        """Discovery layer: New/boosted tokens"""
         data = await self._get(f"{self.BASE}/token-profiles/latest/v1")
         return data if isinstance(data, list) else []
 
-    async def get_token_pairs(self, chain_id: str, token_address: str) -> List[Dict]:
-        """Tokenning barcha juftliklarini olish"""
-        data = await self._get(f"{self.BASE}/token-pairs/v1/{chain_id}/{token_address}")
-        return data if isinstance(data, list) else []
+    async def get_pair(self, chain_id: str, pair_address: str) -> Optional[dict]:
+        """Fetch specific pair data"""
+        data = await self._get(f"{self.BASE}/latest/dex/pairs/{chain_id}/{pair_address}")
+        pairs = (data or {}).get("pairs", [])
+        return pairs[0] if pairs else None
+
+    async def search_pairs(self, query: str) -> list[dict]:
+        """Chain layer: Search for top volume pairs"""
+        data = await self._get(f"{self.BASE}/latest/dex/search?q={query}")
+        return (data or {}).get("pairs", []) or []
 
     async def close(self):
         if self._session and not self._session.closed:
             await self._session.close()
 
 
-def parse_snapshot(pair: Dict) -> Optional[MarketSnapshot]:
+def parse_snapshot(pair: dict) -> Optional[MarketSnapshot]:
     """DexScreener JSON → MarketSnapshot"""
     try:
         base   = pair.get("baseToken", {})
@@ -251,9 +257,9 @@ class RugDetector:
     }
 
     def __init__(self):
-        self._liq_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=10))
+        self._liq_history: dict[str, deque] = defaultdict(lambda: deque(maxlen=10))
 
-    def check(self, snap: MarketSnapshot) -> Tuple[bool, List[str], bool]:
+    def check(self, snap: MarketSnapshot) -> tuple[bool, list[str], bool]:
         """
         Returns: (is_rug_risk, risk_flags, is_wash_trading)
         """
@@ -317,9 +323,9 @@ class SMCAnalyzer:
     """
 
     def __init__(self):
-        self._price_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=24))
+        self._price_history: dict[str, deque] = defaultdict(lambda: deque(maxlen=24))
 
-    def analyze(self, snap: MarketSnapshot) -> Tuple[Optional[str], int]:
+    def analyze(self, snap: MarketSnapshot) -> tuple[Optional[str], int]:
         """
         Returns: (pattern_name, bonus_score)
         """
@@ -371,7 +377,7 @@ class MTFConfluence:
     Qancha ko'p timeframe moslikda bo'lsa — shuncha ishonchli.
     """
 
-    def analyze(self, snap: MarketSnapshot) -> Tuple[Dict, int]:
+    def analyze(self, snap: MarketSnapshot) -> tuple[dict, int]:
         """
         Returns: (timeframe_dict, confluence_bonus)
         """
@@ -430,7 +436,7 @@ class VolumeQualityAnalyzer:
     Sun'iy (bot) hajmni organik hajmdan ajratish.
     """
 
-    def score(self, snap: MarketSnapshot) -> Tuple[int, List[str]]:
+    def score(self, snap: MarketSnapshot) -> tuple[int, list[str]]:
         """
         Returns: (quality_score 0-100, positive_factors)
         """
@@ -486,17 +492,16 @@ class BacktestEngine:
     """
     Har bir signal turi va chain uchun tarixiy
     to'g'rilik foizini dinamik saqlash.
-
-    Signal yuborilgandan keyin 4 soat o'tib narxni
-    tekshirib, to'g'ri/noto'g'ri deb belgilaydi.
     """
 
-    def __init__(self):
-        self._pending: Dict[str, Dict] = {}   # addr -> {entry_price, signal_type, timestamp}
-        self._results: Dict[str, List] = defaultdict(list)  # signal_type -> [bool, ...]
+    def __init__(self, api: DexScreenerAPI):
+        self.api = api
+        self._pending: dict[str, dict] = {}   # addr -> {chain, entry_price, signal_type, timestamp}
+        self._results: dict[str, list] = defaultdict(list)  # signal_type -> [bool, ...]
 
     def record_entry(self, snap: MarketSnapshot, signal_type: str):
         self._pending[snap.pair_address] = {
+            "chain": snap.chain,
             "entry": snap.price_usd,
             "signal": signal_type,
             "time": datetime.now(),
@@ -504,33 +509,44 @@ class BacktestEngine:
             "stop":   snap.price_usd * 0.95,   # 5% stop
         }
 
-    def check_outcomes(self, snaps: List[MarketSnapshot]):
+    async def check_outcomes(self, snaps: list[MarketSnapshot]):
         """Har scan da — oldingi signallar natijasini tekshirish."""
         now = datetime.now()
         completed = []
-        for addr, entry in self._pending.items():
+
+        # Snapshotlar orqali tezkor tekshirish
+        snap_map = {s.pair_address: s for s in snaps}
+
+        for addr, entry in list(self._pending.items()):
             elapsed = (now - entry["time"]).seconds / 3600
-            if elapsed < 4:
+            if elapsed < 2: # Kamida 2 soat kutish
                 continue
-            # Joriy narxni top'ing
-            found = False
-            for snap in snaps:
-                if snap.pair_address == addr:
-                    is_win = snap.price_usd >= entry["target"]
-                    self._results[entry["signal"]].append(is_win)
+
+            target_snap = snap_map.get(addr)
+
+            # Agar snapshotlarda bo'lmasa, API dan so'rash
+            if not target_snap:
+                pair_data = await self.api.get_pair(entry["chain"], addr)
+                if pair_data:
+                    target_snap = parse_snapshot(pair_data)
+
+            if target_snap:
+                is_win = target_snap.price_usd >= entry["target"]
+                is_loss = target_snap.price_usd <= entry["stop"]
+
+                if is_win or is_loss or elapsed >= 24:
+                    win = is_win if (is_win or is_loss) else (target_snap.price_usd > entry["entry"])
+                    self._results[entry["signal"]].append(win)
                     completed.append(addr)
                     log.info(
-                        f"Backtest: {entry['signal']} → {'✅ WIN' if is_win else '❌ LOSS'} "
-                        f"(kirish: ${entry['entry']:.6f} → hozir: ${snap.price_usd:.6f})"
+                        f"Backtest: {entry['signal']} → {'✅ WIN' if win else '❌ LOSS'} "
+                        f"(kirish: ${entry['entry']:.6f} → hozir: ${target_snap.price_usd:.6f})"
                     )
-                    found = True
-                    break
-
-            # Agar snapshotlarda yo'q bo'lsa, lekin 24 soat o'tgan bo'lsa - loss deb hisoblash
-            if not found and elapsed > 24:
+            elif elapsed > 24:
+                # Token g'oyib bo'ldi
                 self._results[entry["signal"]].append(False)
                 completed.append(addr)
-                log.info(f"Backtest: {entry['signal']} → ❌ LOSS (token topilmadi/tushib ketdi)")
+                log.info(f"Backtest: {entry['signal']} → ❌ LOSS (token g'oyib bo'ldi)")
 
         for addr in completed:
             if addr in self._pending:
@@ -555,13 +571,13 @@ class BacktestEngine:
 class SignalEngine:
     STABLE_COINS = {"USDT","USDC","DAI","BUSD","TUSD","FRAX","LUSD","MIM","USDD","USDP"}
 
-    def __init__(self):
+    def __init__(self, api: DexScreenerAPI):
         self.rug       = RugDetector()
         self.smc       = SMCAnalyzer()
         self.mtf       = MTFConfluence()
         self.vol_qual  = VolumeQualityAnalyzer()
-        self.backtest  = BacktestEngine()
-        self._seen:   Dict[str, datetime] = {}
+        self.backtest  = BacktestEngine(api)
+        self._seen:   dict[str, datetime] = {}
         self._dynamic_threshold = MIN_USD_THRESHOLD
         self._signal_hour_count = 0
         self._hour_reset = datetime.now()
@@ -578,7 +594,7 @@ class SignalEngine:
             self._hour_reset = now
         return self._signal_hour_count < MAX_SIGNALS_PER_HR
 
-    def _adjust_dynamic_threshold(self, snaps: List[MarketSnapshot]):
+    def _adjust_dynamic_threshold(self, snaps: list[MarketSnapshot]):
         """Bozor umumiy volatilitetsiga qarab chegarani moslashtirish."""
         if not DYNAMIC_THRESHOLD_ENABLED or not snaps:
             return
@@ -590,7 +606,7 @@ class SignalEngine:
         else:
             self._dynamic_threshold = MIN_USD_THRESHOLD
 
-    def _compute_targets(self, snap: MarketSnapshot, signal_type: str) -> Tuple[float, float, float, float]:
+    def _compute_targets(self, snap: MarketSnapshot, signal_type: str) -> tuple[float, float, float, float]:
         """Kirish, maqsad 1/2, stop-loss hisoblash."""
         p = snap.price_usd
         if "BUY" in signal_type or signal_type in ("ACCUMULATION", "BREAKOUT"):
@@ -611,7 +627,7 @@ class SignalEngine:
             return None
         if snap.liquidity < 40_000:
             return None
-        if snap.volume_24h < self._dynamic_threshold * 2: # Discoveryda hajm kichikroq bo'lishi mumkin
+        if snap.volume_24h < self._dynamic_threshold * 2:
             return None
         if not self._cooldown_ok(snap.pair_address):
             return None
@@ -770,12 +786,15 @@ class SignalEngine:
 
 def escape_md(text: str) -> str:
     """MarkdownV2 uchun maxsus belgilarni escape qilish."""
+    # NOTE: In MarkdownV2, reserved characters outside of code blocks must be escaped.
+    # Reserved: _ * [ ] ( ) ~ ` > # + - = | { } . !
     for ch in r"_*[]()~`>#+-=|{}.!\\":
         text = text.replace(ch, f"\\{ch}")
     return text
 
 def format_signal(sig: SignalResult) -> str:
     snap = sig.snapshot
+    # Use HTML for more reliable parsing of complex messages
     dex_url = f"https://dexscreener.com/{snap.chain}/{snap.pair_address}"
     p = snap.price_usd
 
@@ -785,67 +804,66 @@ def format_signal(sig: SignalResult) -> str:
         bias  = d.get("bias", "neutral")
         emoji = "🟢" if bias == "bull" else "🔴" if bias == "bear" else "⬜"
         ch    = d.get("change", 0)
-        # MarkdownV2 requires escaping dots and minus signs
-        tf_str += emoji + "`" + tf + ":" + f"{ch:+.1f}".replace(".", "\\.").replace("-", "\\-") + "%` "
+        tf_str += f"{emoji} <code>{tf}:{ch:+.1f}%</code> "
 
     # Confluence omillari
     cf_str = ""
     for i, f in enumerate(sig.confluence_factors[:4], 1):
-        cf_str += f"  {i}. {escape_md(f)}\n"
+        cf_str += f"  {i}. {html.escape(f)}\n"
 
     # Risk belgilari
     rf_str = ""
     for r in sig.risk_flags:
-        rf_str += f"  ⚠️ {escape_md(r)}\n"
+        rf_str += f"  ⚠️ {html.escape(r)}\n"
 
     # Backtest
-    bt_str = f"`{sig.backtest_winrate:.0f}%`".replace(".", "\\.") if sig.backtest_winrate is not None else "`Ma'lumot yo'q`"
+    bt_str = f"<code>{sig.backtest_winrate:.0f}%</code>" if sig.backtest_winrate is not None else "<code>Ma'lumot yo'q</code>"
 
     # RUG ALERT — alohida format
     if sig.signal_type == "RUG_ALERT":
         return (
-            f"☠️ *RUG PULL XAVFI — {escape_md(snap.token_symbol)}*\n"
+            f"☠️ <b>RUG PULL XAVFI — {html.escape(snap.token_symbol)}</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔗 Zanjir: `{snap.chain.upper()}` \\| DEX: `{snap.dex.upper()}`\n"
-            f"⚠️ *Xavf belgilari:*\n{rf_str}"
+            f"🔗 Zanjir: <code>{snap.chain.upper()}</code> | DEX: <code>{snap.dex.upper()}</code>\n"
+            f"⚠️ <b>Xavf belgilari:</b>\n{rf_str}"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔗 [DexScreener]({dex_url})\n"
-            f"⏰ {escape_md(datetime.now().strftime('%H:%M:%S'))}"
+            f"🔗 <a href='{dex_url}'>DexScreener</a>\n"
+            f"⏰ {datetime.now().strftime('%H:%M:%S')}"
         )
 
     # Normal signal
     msg = (
-        f"{sig.signal_emoji} *{escape_md(sig.signal_type.replace('_',' '))} — {escape_md(snap.token_symbol)}*\n"
+        f"{sig.signal_emoji} <b>{sig.signal_type.replace('_',' ')} — {html.escape(snap.token_symbol)}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🪙 Token: `{escape_md(snap.token_name)}` ({escape_md(snap.token_symbol)})\n"
-        f"⛓ `{snap.chain.upper()}` \\| `{snap.dex.upper()}`\n"
-        f"💵 Narx: `${f'{p:.8f}'.replace('.', '\\.')}`\n\n"
-        f"📊 *Timeframe tahlili:*\n{tf_str.strip()}\n\n"
-        f"🎯 *Signal ishonchliligi:*\n"
-        f"`{sig.confidence_bar}` {sig.confidence}/100\n\n"
-        f"📌 *Asosiy sabab:*\n_{escape_md(sig.primary_reason)}_\n\n"
+        f"🪙 Token: <code>{html.escape(snap.token_name)}</code> ({html.escape(snap.token_symbol)})\n"
+        f"⛓ <code>{snap.chain.upper()}</code> | <code>{snap.dex.upper()}</code>\n"
+        f"💵 Narx: <code>${p:.8f}</code>\n\n"
+        f"📊 <b>Timeframe tahlili:</b>\n{tf_str.strip()}\n\n"
+        f"🎯 <b>Signal ishonchliligi:</b>\n"
+        f"<code>{sig.confidence_bar}</code> {sig.confidence}/100\n\n"
+        f"📌 <b>Asosiy sabab:</b>\n<i>{html.escape(sig.primary_reason)}</i>\n\n"
     )
 
     if cf_str:
-        msg += f"✅ *Confluence omillari:*\n{cf_str}\n"
+        msg += f"✅ <b>Confluence omillari:</b>\n{cf_str}\n"
 
     if sig.smc_pattern:
-        msg += f"🧠 *SMC Pattern:* `{escape_md(sig.smc_pattern)}`\n\n"
+        msg += f"🧠 <b>SMC Pattern:</b> <code>{html.escape(sig.smc_pattern)}</code>\n\n"
 
     msg += (
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📈 *Savdo rejasi:*\n"
-        f"  Kirish: `${f'{sig.entry_suggestion:.8f}'.replace('.', '\\.')}`\n"
-        f"  Maqsad 1: `${f'{sig.target_1:.8f}'.replace('.', '\\.')}` (+5%)\n"
-        f"  Maqsad 2: `${f'{sig.target_2:.8f}'.replace('.', '\\.')}` (+12%)\n"
-        f"  Stop\\-Loss: `${f'{sig.stop_loss:.8f}'.replace('.', '\\.')}` (\\-4%)\n"
-        f"  R:R nisbati: `{f'{sig.risk_reward:.1f}'.replace('.', '\\.')}:1`\n\n"
+        f"📈 <b>Savdo rejasi:</b>\n"
+        f"  Kirish: <code>${sig.entry_suggestion:.8f}</code>\n"
+        f"  Maqsad 1: <code>${sig.target_1:.8f}</code> (+5%)\n"
+        f"  Maqsad 2: <code>${sig.target_2:.8f}</code> (+12%)\n"
+        f"  Stop-Loss: <code>${sig.stop_loss:.8f}</code> (-4%)\n"
+        f"  R:R nisbati: <code>{sig.risk_reward:.1f}:1</code>\n\n"
     )
 
     msg += (
         f"📚 Tarixiy to'g'rilik: {bt_str}\n"
-        f"💧 Likvidlik: `${f'{snap.liquidity:,.0f}'.replace(',', '\\,')}`\n"
-        f"📦 Hajm (24s): `${f'{snap.volume_24h:,.0f}'.replace(',', '\\,')}`\n"
+        f"💧 Likvidlik: <code>${snap.liquidity:,.0f}</code>\n"
+        f"📦 Hajm (24s): <code>${snap.volume_24h:,.0f}</code>\n"
     )
 
     if rf_str:
@@ -886,10 +904,10 @@ class WhaleTrackerBotV2:
 
     def __init__(self):
         self.dex     = DexScreenerAPI()
-        self.engine  = SignalEngine()
+        self.engine  = SignalEngine(self.dex)
         self.stats   = BotStats()
         self.bot     = Bot(token=TELEGRAM_BOT_TOKEN)
-        self._last_snaps: List[MarketSnapshot] = []
+        self._last_snaps: list[MarketSnapshot] = []
 
     def get_main_keyboard(self):
         """Asosiy boshqaruv tugmalari"""
@@ -915,7 +933,7 @@ class WhaleTrackerBotV2:
             await self.bot.send_message(
                 chat_id=TELEGRAM_CHAT_ID,
                 text=text,
-                parse_mode=ParseMode.MARKDOWN_V2,
+                parse_mode=ParseMode.HTML,
                 disable_web_page_preview=False,
                 reply_markup=reply_markup
             )
@@ -923,19 +941,19 @@ class WhaleTrackerBotV2:
             log.error(f"Telegram yuborish xatosi: {e}")
 
     async def send_startup(self):
-        chains = escape_md(", ".join(c.upper() for c in WATCH_CHAINS))
+        chains = html.escape(", ".join(c.upper() for c in WATCH_CHAINS))
         msg = (
-            f"🐋 *Whale Tracker Pro v2\\.0 ishga tushdi\\!*\n\n"
-            f"✅ Multi\\-timeframe confluence aktiv\n"
+            f"🐋 <b>Whale Tracker Pro v2.0 ishga tushdi!</b>\n\n"
+            f"✅ Multi-timeframe confluence aktiv\n"
             f"✅ Smart Money Concept analyzer aktiv\n"
             f"✅ Rug pull detector aktiv\n"
             f"✅ Backtest engine aktiv\n"
             f"✅ Wash trading filter aktiv\n\n"
-            f"📡 Zanjirlar: `{chains}`\n"
-            f"💰 Minimal summa: `${f'{MIN_USD_THRESHOLD:,}'.replace(',', '\\,')}`\n"
-            f"🎯 Minimal ishonchlilik: `{MIN_CONFIDENCE}/100`\n"
-            f"⏱ Interval: `{SCAN_INTERVAL_SEC}s`\n\n"
-            f"_Boshqaruv paneli uchun /start buyrug'ini bering\\._"
+            f"📡 Zanjirlar: <code>{chains}</code>\n"
+            f"💰 Minimal summa: <code>${MIN_USD_THRESHOLD:,}</code>\n"
+            f"🎯 Minimal ishonchlilik: <code>{MIN_CONFIDENCE}/100</code>\n"
+            f"⏱ Interval: <code>{SCAN_INTERVAL_SEC}s</code>\n\n"
+            f"<i>Boshqaruv paneli uchun /start buyrug'ini bering.</i>"
         )
         await self.send(msg, reply_markup=self.get_main_keyboard())
 
@@ -946,29 +964,32 @@ class WhaleTrackerBotV2:
         self.stats.total_scans += 1
         log.info(f"🔍 Skan #{self.stats.total_scans}...")
 
-        # 1. Discovery: Oxirgi profillarini olish
+        all_pairs_raw: list[dict] = []
+
+        # 1. Discovery layer: Yaqinda profillar
         profiles = await self.dex.get_latest_profiles()
         log.info(f"Discovery: {len(profiles)} ta profil topildi.")
-
-        # 2. Tokenlar bo'yicha juftliklarni fetch qilish
-        all_pairs: List[Dict] = []
-
-        # Discoveryda ko'p token bo'lishi mumkin, limitlaymiz va rate limitga amal qilamiz
-        for prof in profiles[:40]:
+        for prof in profiles[:30]:
             chain_id = prof.get("chainId")
             token_addr = prof.get("tokenAddress")
             if chain_id and token_addr and chain_id in WATCH_CHAINS:
-                pairs = await self.dex.get_token_pairs(chain_id, token_addr)
-                all_pairs.extend(pairs)
-                await asyncio.sleep(0.2) # Rate limit protection
+                pair = await self.dex.get_pair(chain_id, token_addr)
+                if pair: all_pairs_raw.append(pair)
+                await asyncio.sleep(0.1)
+
+        # 2. Chain layer: Search top pairs per chain
+        for chain in WATCH_CHAINS:
+            pairs = await self.dex.search_pairs(chain)
+            all_pairs_raw.extend(pairs[:15])
+            await asyncio.sleep(0.3)
 
         # Snapshot'larni yaratish
-        snaps: List[MarketSnapshot] = []
-        seen = set()
-        for p in all_pairs:
+        snaps: list[MarketSnapshot] = []
+        seen_addrs = set()
+        for p in all_pairs_raw:
             addr = p.get("pairAddress", "")
-            if addr in seen: continue
-            seen.add(addr)
+            if addr in seen_addrs: continue
+            seen_addrs.add(addr)
             snap = parse_snapshot(p)
             if snap: snaps.append(snap)
 
@@ -978,10 +999,10 @@ class WhaleTrackerBotV2:
         self.engine._adjust_dynamic_threshold(snaps)
 
         # Backtest natijalarini tekshirish
-        self.engine.backtest.check_outcomes(snaps)
+        await self.engine.backtest.check_outcomes(snaps)
 
         # Signallarni tahlil qilish
-        signals: List[SignalResult] = []
+        signals: list[SignalResult] = []
         for snap in snaps:
             result = self.engine.analyze(snap)
             if result:
@@ -1011,75 +1032,76 @@ class WhaleTrackerBotV2:
     # ─── TELEGRAM QO'MONDONLARI ───────────────────────
 
     async def cmd_start(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        msg = "🐋 *Whale Tracker Pro v2\\.0 Boshqaruv Paneli*\n\nBoshqarish uchun tugmalardan foydalaning:"
-        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+        msg = "🐋 <b>Whale Tracker Pro v2.0 Boshqaruv Paneli</b>\n\nBoshqarish uchun tugmalardan foydalaning:"
+        await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
 
     async def get_status_text(self) -> str:
         wr = self.engine.backtest.overall_winrate()
-        wr_str = f"`{f'{wr:.0f}'.replace('.', '\\.')}%`" if wr is not None else "`Hali ma'lumot yo'q`"
+        wr_str = f"<code>{wr:.0f}%</code>" if wr is not None else "<code>Hali ma'lumot yo'q</code>"
+        status_txt = "TO'XTATILGAN" if self.stats.paused else "FAOL"
         return (
-            f"📊 *Bot holati*\n\n"
-            f"⏱ Ishlash vaqti: `{escape_md(self.stats.uptime())}`\n"
-            f"🔍 Jami skanlar: `{self.stats.total_scans}`\n"
-            f"📨 Jami signallar: `{self.stats.total_signals}`\n"
-            f"☠️ Rug alertlar: `{self.stats.rug_alerts}`\n"
+            f"📊 <b>Bot holati</b>\n\n"
+            f"⏱ Ishlash vaqti: <code>{html.escape(self.stats.uptime())}</code>\n"
+            f"🔍 Jami skanlar: <code>{self.stats.total_scans}</code>\n"
+            f"📨 Jami signallar: <code>{self.stats.total_signals}</code>\n"
+            f"☠️ Rug alertlar: <code>{self.stats.rug_alerts}</code>\n"
             f"📚 Umumiy to'g'rilik: {wr_str}\n"
-            f"💰 Joriy chegara: `${f'{self.engine._dynamic_threshold:,.0f}'.replace(',', '\\,')}`\n"
-            "⏸ Holat: `" + ("TO'XTATILGAN" if self.stats.paused else "FAOL") + "`"
+            f"💰 Joriy chegara: <code>${self.engine._dynamic_threshold:,.0f}</code>\n"
+            f"⏸ Holat: <code>{status_txt}</code>"
         )
 
     async def cmd_status(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         msg = await self.get_status_text()
-        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+        await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
 
     async def cmd_top5(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not self._last_snaps:
             await update.message.reply_text("Hali skan qilinmagan.")
             return
         top = sorted(self._last_snaps, key=lambda s: s.volume_24h, reverse=True)[:5]
-        lines = ["📈 *Top 5 token (hajm bo'yicha)*\n"]
+        lines = ["📈 <b>Top 5 token (hajm bo'yicha)</b>\n"]
         for i, s in enumerate(top, 1):
             lines.append(
-                f"{i}. `{escape_md(s.token_symbol)}` "
-                f"({escape_md(s.chain.upper())}) — "
-                f"`${f'{s.volume_24h:,.0f}'.replace(',', '\\,')}` hajm, "
-                f"`{f'{s.change_24h:+.1f}'.replace('.', '\\.').replace('-', '\\-')}%`"
+                f"{i}. <code>{html.escape(s.token_symbol)}</code> "
+                f"({html.escape(s.chain.upper())}) — "
+                f"<code>${s.volume_24h:,.0f}</code> hajm, "
+                f"<code>{s.change_24h:+.1f}%</code>"
             )
-        await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+        await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
 
     async def cmd_pause(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         self.stats.paused = True
-        await update.message.reply_text("⏸ Bot to'xtatildi. Resuming: /resume", parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+        await update.message.reply_text("⏸ Bot to'xtatildi. Resuming: /resume", parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
 
     async def cmd_resume(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         self.stats.paused = False
-        await update.message.reply_text("▶️ Bot qayta ishga tushdi!", parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+        await update.message.reply_text("▶️ Bot qayta ishga tushdi!", parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
 
     async def cmd_setlimit(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         try:
             val = int(ctx.args[0])
             self.engine._dynamic_threshold = val
             await update.message.reply_text(
-                f"✅ Yangi chegara: `${f'{val:,}'.replace(',', '\\,')}` o'rnatildi.",
-                parse_mode=ParseMode.MARKDOWN_V2,
+                f"✅ Yangi chegara: <code>${val:,}</code> o'rnatildi.",
+                parse_mode=ParseMode.HTML,
                 reply_markup=self.get_main_keyboard()
             )
         except (IndexError, ValueError):
             await update.message.reply_text("Foydalanish: /setlimit 75000")
 
     async def get_winrate_text(self) -> str:
-        lines = ["📚 *Signal turlari bo'yicha to'g'rilik*\n"]
+        lines = ["📚 <b>Signal turlari bo'yicha to'g'rilik</b>\n"]
         for stype, results in self.engine.backtest._results.items():
             if results:
                 wr = sum(results) / len(results) * 100
-                lines.append(f"`{escape_md(stype)}`: `{f'{wr:.0f}'.replace('.', '\\.')}%` ({len(results)} ta signal)")
+                lines.append(f"<code>{html.escape(stype)}</code>: <code>{wr:.0f}%</code> ({len(results)} ta signal)")
         if len(lines) == 1:
-            lines.append("_Hali ma'lumot yo'q_")
+            lines.append("<i>Hali ma'lumot yo'q</i>")
         return "\n".join(lines)
 
     async def cmd_winrate(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         msg = await self.get_winrate_text()
-        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+        await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
 
     async def button_callback(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
@@ -1088,43 +1110,40 @@ class WhaleTrackerBotV2:
 
         if data == "cmd_status":
             msg = await self.get_status_text()
-            await query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+            await query.edit_message_text(msg, parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
 
         elif data == "cmd_top5":
             if not self._last_snaps:
                 await query.message.reply_text("Hali skan qilinmagan.")
                 return
             top = sorted(self._last_snaps, key=lambda s: s.volume_24h, reverse=True)[:5]
-            lines = ["📈 *Top 5 token (hajm bo'yicha)*\n"]
+            lines = ["📈 <b>Top 5 token (hajm bo'yicha)</b>\n"]
             for i, s in enumerate(top, 1):
                 lines.append(
-                    f"{i}. `{escape_md(s.token_symbol)}` "
-                    f"({escape_md(s.chain.upper())}) — "
-                    f"`${f'{s.volume_24h:,.0f}'.replace(',', '\\,')}` hajm, "
-                    f"`{f'{s.change_24h:+.1f}'.replace('.', '\\.').replace('-', '\\-')}%`"
+                    f"{i}. <code>{html.escape(s.token_symbol)}</code> "
+                    f"({html.escape(s.chain.upper())}) — "
+                    f"<code>${s.volume_24h:,.0f}</code> hajm, "
+                    f"<code>{s.change_24h:+.1f}%</code>"
                 )
-            await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+            await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
 
         elif data == "cmd_toggle_pause":
             self.stats.paused = not self.stats.paused
-            status = "TO'XTATILGAN" if self.stats.paused else "FAOL"
-            await query.message.reply_text(f"🔄 Bot holati o'zgardi: `{status}`", parse_mode=ParseMode.MARKDOWN_V2)
             msg = await self.get_status_text()
-            await query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+            await query.edit_message_text(msg, parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
 
         elif data == "cmd_winrate":
             msg = await self.get_winrate_text()
-            await query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+            await query.edit_message_text(msg, parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
 
         elif data == "cmd_scan_now":
-            await query.message.reply_text("🔍 Navbatdan tashqari skanerlash boshlandi...")
             asyncio.create_task(self.scan_once())
 
         elif data == "cmd_limit_info":
             await query.message.reply_text(
-                f"💰 Joriy xarid limiti: `${f'{self.engine._dynamic_threshold:,.0f}'.replace(',', '\\,')}`\n"
-                f"O'zgartirish uchun `/setlimit 100000` kabi buyruq bering\\.",
-                parse_mode=ParseMode.MARKDOWN_V2
+                f"💰 Joriy xarid limiti: <code>${self.engine._dynamic_threshold:,.0f}</code>\n"
+                f"O'zgartirish uchun <code>/setlimit 100000</code> kabi buyruq bering.",
+                parse_mode=ParseMode.HTML
             )
 
     # ─── ISHGA TUSHIRISH ──────────────────────────────
