@@ -47,8 +47,8 @@ init(autoreset=True)
 #  SOZLAMALAR
 # ══════════════════════════════════════════════════════
 
-TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID")
+TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM")
+TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID", "798283148")
 
 MIN_USD_THRESHOLD   = 50_000
 SCAN_INTERVAL_SEC   = 45
