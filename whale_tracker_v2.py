@@ -32,7 +32,7 @@ import os
 import html
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 import aiohttp
 from colorama import Fore, Style, init
@@ -47,9 +47,9 @@ init(autoreset=True)
 #  SOZLAMALAR
 # ══════════════════════════════════════════════════════
 
-# NOTE: Defaults provided for environment-restricted setups like Pydroid 3.
-TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM")
-TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID", "798283148")
+# NOTE: Use environment variables or a .env file to set these values.
+TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID")
 
 MIN_USD_THRESHOLD   = 50_000
 SCAN_INTERVAL_SEC   = 45
@@ -1165,6 +1165,10 @@ class WhaleTrackerBotV2:
 {Fore.YELLOW}  Multi-TF · SMC · Rug Detect · Backtest · Anti-Wash{Style.RESET_ALL}
         """)
 
+        if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+            log.error("TELEGRAM_BOT_TOKEN yoki TELEGRAM_CHAT_ID o'rnatilmagan! .env faylini yoki environment variable'larni tekshiring.")
+            return
+
         await self.send_startup()
 
         app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
@@ -1178,7 +1182,8 @@ class WhaleTrackerBotV2:
         app.add_handler(CommandHandler("winrate",  self.cmd_winrate))
         app.add_handler(CallbackQueryHandler(self.button_callback))
 
-        scheduler = AsyncIOScheduler()
+        # Explicit timezone to avoid ZoneInfoNotFoundError in some environments
+        scheduler = AsyncIOScheduler(timezone=timezone.utc)
         scheduler.add_job(
             self.scan_once,
             "interval",
