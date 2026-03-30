@@ -47,9 +47,8 @@ init(autoreset=True)
 #  SOZLAMALAR
 # ══════════════════════════════════════════════════════
 
-# NOTE: Defaults provided for environment-restricted setups like Pydroid 3.
-TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM")
-TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID", "798283148")
+TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID")
 
 MIN_USD_THRESHOLD   = 50_000
 SCAN_INTERVAL_SEC   = 45
@@ -784,17 +783,9 @@ class SignalEngine:
 #  TELEGRAM XABAR FORMATI
 # ══════════════════════════════════════════════════════
 
-def escape_md(text: str) -> str:
-    """MarkdownV2 uchun maxsus belgilarni escape qilish."""
-    # NOTE: In MarkdownV2, reserved characters outside of code blocks must be escaped.
-    # Reserved: _ * [ ] ( ) ~ ` > # + - = | { } . !
-    for ch in r"_*[]()~`>#+-=|{}.!\\":
-        text = text.replace(ch, f"\\{ch}")
-    return text
-
 def format_signal(sig: SignalResult) -> str:
     snap = sig.snapshot
-    # Use HTML for more reliable parsing of complex messages
+    # Use HTML exclusively for reliable rendering
     dex_url = f"https://dexscreener.com/{snap.chain}/{snap.pair_address}"
     p = snap.price_usd
 
@@ -867,12 +858,12 @@ def format_signal(sig: SignalResult) -> str:
     )
 
     if rf_str:
-        msg += f"\n⚠️ *Xavf belgilari:*\n{rf_str}"
+        msg += f"\n⚠️ <b>Xavf belgilari:</b>\n{rf_str}"
 
     msg += (
         f"\n━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🔗 [DexScreener da ko'rish]({dex_url})\n"
-        f"⏰ {escape_md(datetime.now().strftime('%H:%M:%S'))} \\| WhaleTracker Pro v2\\.0"
+        f"🔗 <a href='{dex_url}'>DexScreener da ko'rish</a>\n"
+        f"⏰ {datetime.now().strftime('%H:%M:%S')} | WhaleTracker Pro v2.0"
     )
 
     return msg
@@ -980,8 +971,9 @@ class WhaleTrackerBotV2:
         # 2. Chain layer: Search top pairs per chain
         for chain in WATCH_CHAINS:
             pairs = await self.dex.search_pairs(chain)
-            all_pairs_raw.extend(pairs[:15])
-            await asyncio.sleep(0.3)
+            log.info(f"Chain {chain}: {len(pairs)} ta juftlik topildi.")
+            all_pairs_raw.extend(pairs[:20])
+            await asyncio.sleep(0.4)
 
         # Snapshot'larni yaratish
         snaps: list[MarketSnapshot] = []
@@ -1108,9 +1100,16 @@ class WhaleTrackerBotV2:
         await query.answer()
         data = query.data
 
+        async def safe_edit(text, reply_markup=None):
+            try:
+                await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+            except Exception as e:
+                if "Message is not modified" not in str(e):
+                    log.error(f"Edit error: {e}")
+
         if data == "cmd_status":
             msg = await self.get_status_text()
-            await query.edit_message_text(msg, parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
+            await safe_edit(msg, reply_markup=self.get_main_keyboard())
 
         elif data == "cmd_top5":
             if not self._last_snaps:
@@ -1125,16 +1124,16 @@ class WhaleTrackerBotV2:
                     f"<code>${s.volume_24h:,.0f}</code> hajm, "
                     f"<code>{s.change_24h:+.1f}%</code>"
                 )
-            await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
+            await safe_edit("\n".join(lines), reply_markup=self.get_main_keyboard())
 
         elif data == "cmd_toggle_pause":
             self.stats.paused = not self.stats.paused
             msg = await self.get_status_text()
-            await query.edit_message_text(msg, parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
+            await safe_edit(msg, reply_markup=self.get_main_keyboard())
 
         elif data == "cmd_winrate":
             msg = await self.get_winrate_text()
-            await query.edit_message_text(msg, parse_mode=ParseMode.HTML, reply_markup=self.get_main_keyboard())
+            await safe_edit(msg, reply_markup=self.get_main_keyboard())
 
         elif data == "cmd_scan_now":
             asyncio.create_task(self.scan_once())
@@ -1145,6 +1144,9 @@ class WhaleTrackerBotV2:
                 f"O'zgartirish uchun <code>/setlimit 100000</code> kabi buyruq bering.",
                 parse_mode=ParseMode.HTML
             )
+
+    async def error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        log.error(f"Update {update} caused error {context.error}")
 
     # ─── ISHGA TUSHIRISH ──────────────────────────────
 
@@ -1159,6 +1161,7 @@ class WhaleTrackerBotV2:
         await self.send_startup()
 
         app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+        app.add_error_handler(self.error_handler)
         app.add_handler(CommandHandler("start",    self.cmd_start))
         app.add_handler(CommandHandler("status",   self.cmd_status))
         app.add_handler(CommandHandler("top5",     self.cmd_top5))
