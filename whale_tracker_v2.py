@@ -47,6 +47,7 @@ init(autoreset=True)
 #  SOZLAMALAR
 # ══════════════════════════════════════════════════════
 
+# NOTE: Defaults provided for environment-restricted setups like Pydroid 3.
 TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM")
 TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID", "798283148")
 
@@ -151,7 +152,9 @@ class SignalResult:
 
 class DexScreenerAPI:
     BASE    = "https://api.dexscreener.com"
-    HEADERS = {"User-Agent": "WhaleTrackerPro/2.0"}
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
 
     def __init__(self):
         self._session: Optional[aiohttp.ClientSession] = None
@@ -167,8 +170,12 @@ class DexScreenerAPI:
             async with sess.get(url, timeout=aiohttp.ClientTimeout(total=15)) as r:
                 if r.status == 200:
                     return await r.json()
+                else:
+                    log.error(f"API xatosi {url} -> Status: {r.status}")
+                    body = await r.text()
+                    log.debug(f"Xato body: {body[:200]}")
         except Exception as e:
-            log.debug(f"API xatosi {url}: {e}")
+            log.debug(f"API ulanish xatosi {url}: {e}")
         return None
 
     async def get_latest_profiles(self) -> list[dict]:
