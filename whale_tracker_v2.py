@@ -35,8 +35,8 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 import aiohttp
 from colorama import Fore, Style, init
-from telegram import Bot, Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
 from telegram.constants import ParseMode
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -46,8 +46,8 @@ init(autoreset=True)
 #  SOZLAMALAR
 # ══════════════════════════════════════════════════════
 
-TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM")
-TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID", "798283148")
+TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID")
 
 MIN_USD_THRESHOLD   = 50_000
 SCAN_INTERVAL_SEC   = 60
@@ -85,7 +85,7 @@ class MarketSnapshot:
     token_symbol:   str
     token_name:     str
     chain:          str
-    dex:            str
+    dex:          str
     price_usd:      float
     market_cap:     float
     liquidity:      float
@@ -891,13 +891,33 @@ class WhaleTrackerBotV2:
         self.bot     = Bot(token=TELEGRAM_BOT_TOKEN)
         self._last_snaps: List[MarketSnapshot] = []
 
-    async def send(self, text: str):
+    def get_main_keyboard(self):
+        """Asosiy boshqaruv tugmalari"""
+        pause_label = "▶️ Resume" if self.stats.paused else "⏸ Pause"
+        keyboard = [
+            [
+                InlineKeyboardButton("📊 Status", callback_data="cmd_status"),
+                InlineKeyboardButton("📈 Top 5", callback_data="cmd_top5")
+            ],
+            [
+                InlineKeyboardButton(pause_label, callback_data="cmd_toggle_pause"),
+                InlineKeyboardButton("📚 Winrate", callback_data="cmd_winrate")
+            ],
+            [
+                InlineKeyboardButton("⚙️ Skaner", callback_data="cmd_scan_now"),
+                InlineKeyboardButton("💰 Limit", callback_data="cmd_limit_info")
+            ]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    async def send(self, text: str, reply_markup=None):
         try:
             await self.bot.send_message(
                 chat_id=TELEGRAM_CHAT_ID,
                 text=text,
                 parse_mode=ParseMode.MARKDOWN_V2,
                 disable_web_page_preview=False,
+                reply_markup=reply_markup
             )
         except Exception as e:
             log.error(f"Telegram yuborish xatosi: {e}")
@@ -915,9 +935,9 @@ class WhaleTrackerBotV2:
             f"💰 Minimal summa: `${f'{MIN_USD_THRESHOLD:,}'.replace(',', '\\,')}`\n"
             f"🎯 Minimal ishonchlilik: `{MIN_CONFIDENCE}/100`\n"
             f"⏱ Interval: `{SCAN_INTERVAL_SEC}s`\n\n"
-            f"_Qo'mondonlar: /status /top5 /pause /resume /setlimit_"
+            f"_Boshqaruv paneli uchun /start buyrug'ini bering\\._"
         )
-        await self.send(msg)
+        await self.send(msg, reply_markup=self.get_main_keyboard())
 
     async def scan_once(self):
         if self.stats.paused:
@@ -990,10 +1010,14 @@ class WhaleTrackerBotV2:
 
     # ─── TELEGRAM QO'MONDONLARI ───────────────────────
 
-    async def cmd_status(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    async def cmd_start(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        msg = "🐋 *Whale Tracker Pro v2\\.0 Boshqaruv Paneli*\n\nBoshqarish uchun tugmalardan foydalaning:"
+        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+
+    async def get_status_text(self) -> str:
         wr = self.engine.backtest.overall_winrate()
         wr_str = f"`{f'{wr:.0f}'.replace('.', '\\.')}%`" if wr is not None else "`Hali ma'lumot yo'q`"
-        msg = (
+        return (
             f"📊 *Bot holati*\n\n"
             f"⏱ Ishlash vaqti: `{escape_md(self.stats.uptime())}`\n"
             f"🔍 Jami skanlar: `{self.stats.total_scans}`\n"
@@ -1003,7 +1027,10 @@ class WhaleTrackerBotV2:
             f"💰 Joriy chegara: `${f'{self.engine._dynamic_threshold:,.0f}'.replace(',', '\\,')}`\n"
             "⏸ Holat: `" + ("TO'XTATILGAN" if self.stats.paused else "FAOL") + "`"
         )
-        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN_V2)
+
+    async def cmd_status(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        msg = await self.get_status_text()
+        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
 
     async def cmd_top5(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not self._last_snaps:
@@ -1018,15 +1045,15 @@ class WhaleTrackerBotV2:
                 f"`${f'{s.volume_24h:,.0f}'.replace(',', '\\,')}` hajm, "
                 f"`{f'{s.change_24h:+.1f}'.replace('.', '\\.').replace('-', '\\-')}%`"
             )
-        await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
 
     async def cmd_pause(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         self.stats.paused = True
-        await update.message.reply_text("⏸ Bot to'xtatildi. Resuming: /resume", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("⏸ Bot to'xtatildi. Resuming: /resume", parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
 
     async def cmd_resume(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         self.stats.paused = False
-        await update.message.reply_text("▶️ Bot qayta ishga tushdi!", parse_mode=ParseMode.MARKDOWN_V2)
+        await update.message.reply_text("▶️ Bot qayta ishga tushdi!", parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
 
     async def cmd_setlimit(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         try:
@@ -1034,12 +1061,13 @@ class WhaleTrackerBotV2:
             self.engine._dynamic_threshold = val
             await update.message.reply_text(
                 f"✅ Yangi chegara: `${f'{val:,}'.replace(',', '\\,')}` o'rnatildi.",
-                parse_mode=ParseMode.MARKDOWN_V2
+                parse_mode=ParseMode.MARKDOWN_V2,
+                reply_markup=self.get_main_keyboard()
             )
         except (IndexError, ValueError):
             await update.message.reply_text("Foydalanish: /setlimit 75000")
 
-    async def cmd_winrate(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    async def get_winrate_text(self) -> str:
         lines = ["📚 *Signal turlari bo'yicha to'g'rilik*\n"]
         for stype, results in self.engine.backtest._results.items():
             if results:
@@ -1047,7 +1075,57 @@ class WhaleTrackerBotV2:
                 lines.append(f"`{escape_md(stype)}`: `{f'{wr:.0f}'.replace('.', '\\.')}%` ({len(results)} ta signal)")
         if len(lines) == 1:
             lines.append("_Hali ma'lumot yo'q_")
-        await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2)
+        return "\n".join(lines)
+
+    async def cmd_winrate(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        msg = await self.get_winrate_text()
+        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+
+    async def button_callback(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        await query.answer()
+        data = query.data
+
+        if data == "cmd_status":
+            msg = await self.get_status_text()
+            await query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+
+        elif data == "cmd_top5":
+            if not self._last_snaps:
+                await query.message.reply_text("Hali skan qilinmagan.")
+                return
+            top = sorted(self._last_snaps, key=lambda s: s.volume_24h, reverse=True)[:5]
+            lines = ["📈 *Top 5 token (hajm bo'yicha)*\n"]
+            for i, s in enumerate(top, 1):
+                lines.append(
+                    f"{i}. `{escape_md(s.token_symbol)}` "
+                    f"({escape_md(s.chain.upper())}) — "
+                    f"`${f'{s.volume_24h:,.0f}'.replace(',', '\\,')}` hajm, "
+                    f"`{f'{s.change_24h:+.1f}'.replace('.', '\\.').replace('-', '\\-')}%`"
+                )
+            await query.edit_message_text("\n".join(lines), parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+
+        elif data == "cmd_toggle_pause":
+            self.stats.paused = not self.stats.paused
+            status = "TO'XTATILGAN" if self.stats.paused else "FAOL"
+            await query.message.reply_text(f"🔄 Bot holati o'zgardi: `{status}`", parse_mode=ParseMode.MARKDOWN_V2)
+            msg = await self.get_status_text()
+            await query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+
+        elif data == "cmd_winrate":
+            msg = await self.get_winrate_text()
+            await query.edit_message_text(msg, parse_mode=ParseMode.MARKDOWN_V2, reply_markup=self.get_main_keyboard())
+
+        elif data == "cmd_scan_now":
+            await query.message.reply_text("🔍 Navbatdan tashqari skanerlash boshlandi...")
+            asyncio.create_task(self.scan_once())
+
+        elif data == "cmd_limit_info":
+            await query.message.reply_text(
+                f"💰 Joriy xarid limiti: `${f'{self.engine._dynamic_threshold:,.0f}'.replace(',', '\\,')}`\n"
+                f"O'zgartirish uchun `/setlimit 100000` kabi buyruq bering\\.",
+                parse_mode=ParseMode.MARKDOWN_V2
+            )
 
     # ─── ISHGA TUSHIRISH ──────────────────────────────
 
@@ -1062,12 +1140,14 @@ class WhaleTrackerBotV2:
         await self.send_startup()
 
         app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+        app.add_handler(CommandHandler("start",    self.cmd_start))
         app.add_handler(CommandHandler("status",   self.cmd_status))
         app.add_handler(CommandHandler("top5",     self.cmd_top5))
         app.add_handler(CommandHandler("pause",    self.cmd_pause))
         app.add_handler(CommandHandler("resume",   self.cmd_resume))
         app.add_handler(CommandHandler("setlimit", self.cmd_setlimit))
         app.add_handler(CommandHandler("winrate",  self.cmd_winrate))
+        app.add_handler(CallbackQueryHandler(self.button_callback))
 
         scheduler = AsyncIOScheduler()
         scheduler.add_job(
