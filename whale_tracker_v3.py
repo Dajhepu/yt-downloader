@@ -42,9 +42,9 @@ init(autoreset=True)
 #  ⚙️  SOZLAMALAR
 # ══════════════════════════════════════════════════════════════
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
-MORALIS_API_KEY    = os.getenv("MORALIS_API_KEY", "YOUR_MORALIS_KEY")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM")
+TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "798283148")
+MORALIS_API_KEY    = os.getenv("MORALIS_API_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImM5ZTFhYjE4LTRiNDktNGI5Ni04ZjBkLWRmNTE1MmI3NmQ4MCIsIm9yZ0lkIjoiNTA3NzI2IiwidXNlcklkIjoiNTIyNDE3IiwidHlwZUlkIjoiYjQwZTBiZDAtMDcxMi00ZGI1LWI3OTQtZjU1OGZiYjI2YzZjIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3NzQ5NTU2NzAsImV4cCI6NDkzMDcxNTY3MH0.ydI7mToaxqNG2qT5gvPymI4sb-MbjEWW37Ik6IoKpnk")
 
 # Signal filtrlari
 MIN_CONFIDENCE      = 60       # Minimal signal bali (0–100)
