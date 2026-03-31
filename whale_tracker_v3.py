@@ -42,9 +42,9 @@ init(autoreset=True)
 #  ⚙️  SOZLAMALAR
 # ══════════════════════════════════════════════════════════════
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
-MORALIS_API_KEY    = os.getenv("MORALIS_API_KEY")
+TELEGRAM_BOT_TOKEN = "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM"
+TELEGRAM_CHAT_ID   = "798283148"
+MORALIS_API_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImM5ZTFhYjE4LTRiNDktNGI5Ni04ZjBkLWRmNTE1MmI3NmQ4MCIsIm9yZ0lkIjoiNTA3NzI2IiwidXNlcklkIjoiNTIyNDE3IiwidHlwZUlkIjoiYjQwZTBiZDAtMDcxMi00ZGI1LWI3OTQtZjU1OGZiYjI2YzZjIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3NzQ5NTU2NzAsImV4cCI6NDkzMDcxNTY3MH0.ydI7mToaxqNG2qT5gvPymI4sb-MbjEWW37Ik6IoKpnk"
 
 # Signal filtrlari
 MIN_CONFIDENCE      = 60       # Minimal signal bali (0–100)
@@ -1521,7 +1521,8 @@ class WhaleTrackerV3:
     async def startup(self):
         chains = html.escape(", ".join(c.upper() for c in WATCH_CHAINS))
         await self.send(
-            f"🐋 <b>Whale Tracker Pro v3.1 — EXPERT INTELLIGENCE</b>\n\n"
+            f"🐋 <b>Whale Tracker Pro v3.2 — MOONSHOT ALPHA</b>\n\n"
+            f"🚀 Moonshot Alpha Detection (Low-cap Gems)\n"
             f"🧬 Neural Scoring Engine (17 faktor)\n"
             f"🛡️ GoPlus Security Scanner\n"
             f"🧠 Moralis Wallet Alpha Analysis\n"
@@ -1754,9 +1755,9 @@ class WhaleTrackerV3:
     async def run(self):
         print(f"""
 {Fore.CYAN}╔══════════════════════════════════════════════════════════╗
-║       WHALE TRACKER PRO v3.1 — EXPERT INTELLIGENCE       ║
+║       WHALE TRACKER PRO v3.2 — MOONSHOT ALPHA            ║
 ╠══════════════════════════════════════════════════════════╣
-║  Neural · Moralis · GoPlus · LP Momentum · Clustering     ║
+║  Neural · Moralis · GoPlus · Moonshot · Clustering        ║
 ║  SMC · Regime · Position Tracker · Adaptive Weights       ║
 ╚══════════════════════════════════════════════════════════╝{Style.RESET_ALL}
         """)
