@@ -42,9 +42,9 @@ init(autoreset=True)
 #  ⚙️  SOZLAMALAR
 # ══════════════════════════════════════════════════════════════
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM")
-TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "798283148")
-MORALIS_API_KEY    = os.getenv("MORALIS_API_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImM5ZTFhYjE4LTRiNDktNGI5Ni04ZjBkLWRmNTE1MmI3NmQ4MCIsIm9yZ0lkIjoiNTA3NzI2IiwidXNlcklkIjoiNTIyNDE3IiwidHlwZUlkIjoiYjQwZTBiZDAtMDcxMi00ZGI1LWI3OTQtZjU1OGZiYjI2YzZjIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3NzQ5NTU2NzAsImV4cCI6NDkzMDcxNTY3MH0.ydI7mToaxqNG2qT5gvPymI4sb-MbjEWW37Ik6IoKpnk")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID")
+MORALIS_API_KEY    = os.getenv("MORALIS_API_KEY")
 
 # Signal filtrlari
 MIN_CONFIDENCE      = 60       # Minimal signal bali (0–100)
@@ -341,10 +341,6 @@ class DexScreenerAPI:
         data = await self.http.get(f"{self.BASE}/token-profiles/latest/v1")
         return data if isinstance(data, list) else []
 
-    async def get_boosted(self) -> list[dict]:
-        data = await self.http.get(f"{self.BASE}/token-boosts/active/v1")
-        return data if isinstance(data, list) else []
-
     async def search(self, query: str) -> list[dict]:
         data = await self.http.get(f"{self.BASE}/latest/dex/search", params={"q": query})
         return (data or {}).get("pairs", []) or []
@@ -354,8 +350,9 @@ class DexScreenerAPI:
         pairs = (data or {}).get("pairs", [])
         return pairs[0] if pairs else None
 
-    async def get_token_pairs(self, chain: str, token: str) -> list[dict]:
-        data = await self.http.get(f"{self.BASE}/latest/dex/tokens/{token}")
+    async def get_token_pairs(self, token_address: str) -> list[dict]:
+        """Fetch all pairs for a specific token address across all chains/DEXs"""
+        data = await self.http.get(f"{self.BASE}/latest/dex/tokens/{token_address}")
         return (data or {}).get("pairs", []) or []
 
 
@@ -1160,7 +1157,7 @@ class SignalEngine:
         self.lp.update(snap)
         lp_score, lp_flags = self.lp.analyze_momentum(snap)
 
-        # Stablecoin filtri
+        # 1. Tezkor filtrlar (API chaqiruvidan oldin)
         if snap.token_symbol.upper() in RugDetector.STABLES:
             return None
         if snap.liquidity < MIN_LIQUIDITY:
@@ -1172,12 +1169,20 @@ class SignalEngine:
         if not self._ok(snap.pair_address):
             return None
 
-        # GoPlus security skan
+        # 2. GoPlus security skan (Har doim kerak)
         sec = await self.goplus.scan(snap.chain, snap.token_address)
 
-        # Moralis Expert tahlili (faqat yuqori ishonchli skaner uchun)
+        # 3. Moralis Expert tahlili (Lazy loading)
+        # Faqat agar token boshqa barcha filtrlardan o'tsa va yetarlicha likvid bo'lsa
         sec.expert_holders = []
-        if snap.liquidity > MIN_LIQUIDITY * 2:
+
+        # Token turi va texnik holatini aniqlash
+        signal_type = self._classify(snap)
+        if not signal_type:
+            return None
+
+        # Faqat BUY yoki STRONG_BUY signallarida Moralis'ni ishlatamiz (Vaqt tejash uchun)
+        if "BUY" in signal_type and snap.liquidity > MIN_LIQUIDITY * 1.5:
             sec.expert_holders = await self.moralis.detect_smart_money_groups(snap.chain, snap.token_address)
 
         # Rug tekshirish
@@ -1507,37 +1512,31 @@ class WhaleTrackerV3:
         # CoinGecko trending yangilash
         await self.trending.refresh()
 
-        # Boosted tokenlarni olish
-        boosted = await self.dex.get_boosted()
-        self._boosted = {b.get("tokenAddress","").lower() for b in boosted}
-        log.info(f"Boosted tokenlar: {len(self._boosted)}")
-
         raw: list[dict] = []
 
-        # Discovery: so'nggi profiller
+        # 1. Discovery: So'nggi profillar (Concurrent fetch)
         profiles = await self.dex.get_latest_profiles()
-        for pr in profiles[:25]:
-            cid = pr.get("chainId","")
-            ta  = pr.get("tokenAddress","")
-            if cid in WATCH_CHAINS and ta:
-                pairs = await self.dex.get_token_pairs(cid, ta)
-                raw.extend(pairs[:3])
-                await asyncio.sleep(0.08)
+        log.info(f"Profiles: {len(profiles)} ta topildi.")
 
-        # Boosted tokenlar
-        for b in boosted[:15]:
-            cid = b.get("chainId","")
-            ta  = b.get("tokenAddress","")
-            if cid in WATCH_CHAINS and ta:
-                pairs = await self.dex.get_token_pairs(cid, ta)
-                raw.extend(pairs[:2])
-                await asyncio.sleep(0.08)
+        async def fetch_profile_pairs(ta):
+            p_list = await self.dex.get_token_pairs(ta)
+            return [p for p in p_list if p.get("chainId") in WATCH_CHAINS][:3]
 
-        # Har zanjir uchun top juftliklar
-        for chain in WATCH_CHAINS:
-            pairs = await self.dex.search(chain)
-            raw.extend(pairs[:25])
-            await asyncio.sleep(0.35)
+        profile_tasks = [fetch_profile_pairs(pr.get("tokenAddress")) for pr in profiles[:20] if pr.get("tokenAddress")]
+        profile_results = await asyncio.gather(*profile_tasks)
+        for r in profile_results: raw.extend(r)
+
+        # 2. Search: Har bir chain uchun trending qidiruv
+        search_tasks = [self.dex.search(f"{chain} trending") for chain in WATCH_CHAINS]
+        search_results = await asyncio.gather(*search_tasks)
+        for i, res in enumerate(search_results):
+            log.info(f"Chain {WATCH_CHAINS[i]}: {len(res)} ta juftlik.")
+            raw.extend(res[:15])
+
+        # 3. CG Trending Discovery
+        cg_tasks = [self.dex.search(symbol) for symbol in list(self.trending._trending_symbols)[:8]]
+        cg_results = await asyncio.gather(*cg_tasks)
+        for res in cg_results: raw.extend(res[:5])
 
         # Snapshotlar
         snaps: list[MarketSnapshot] = []
@@ -1548,26 +1547,29 @@ class WhaleTrackerV3:
                 seen.add(addr)
                 s = parse_snap(p)
                 if s:
-                    # Boosted belgisi
-                    if s.token_address.lower() in self._boosted:
-                        s.token_name = "⚡" + s.token_name
                     snaps.append(s)
 
+        log.info(f"Dastlabki snapshots: {len(snaps)} ta.")
         self._snaps = snaps
         self.engine.regime.update(snaps)
         await self.backtest.check(snaps)
         await self.tracker.check_all(snaps)
 
-        log.info(f"Tahlil qilinmoqda: {len(snaps)} juftlik")
+        log.info(f"Tahlil qilinmoqda: {len(snaps)} juftlik (Parallel)...")
 
-        signals: list[SignalResult] = []
-        for snap in snaps:
-            try:
-                res = await self.engine.analyze(snap)
-                if res:
-                    signals.append(res)
-            except Exception as e:
-                log.debug(f"analyze xatosi: {e}")
+        # 4. Parallel Analyze with Concurrency Limit
+        sem = asyncio.Semaphore(5) # Maksimal 5 ta parallel tahlil
+        async def bounded_analyze(snap):
+            async with sem:
+                try:
+                    return await self.engine.analyze(snap)
+                except Exception as e:
+                    log.debug(f"Analyze error: {e}")
+                    return None
+
+        analyze_tasks = [bounded_analyze(s) for s in snaps[:60]] # Max 60 ta tahlil
+        analyze_results = await asyncio.gather(*analyze_tasks)
+        signals = [sig for sig in analyze_results if sig]
 
         signals.sort(key=lambda x: x.confidence, reverse=True)
 
