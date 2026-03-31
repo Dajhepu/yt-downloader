@@ -182,6 +182,7 @@ class SignalResult:
     @property
     def emoji(self) -> str:
         return {
+            "MOONSHOT_ALPHA":"🚀🔥",
             "STRONG_BUY":   "🟢🟢",
             "BUY":          "🟢",
             "ACCUMULATION": "🐋",
@@ -1160,9 +1161,31 @@ class SignalEngine:
         # 1. Tezkor filtrlar (API chaqiruvidan oldin)
         if snap.token_symbol.upper() in RugDetector.STABLES:
             return None
-        if snap.liquidity < MIN_LIQUIDITY:
-            return None
-        if snap.volume_24h < MIN_VOLUME_24H:
+
+        # MOONSHOT BYPASS: Agar token yosh bo'lsa va hajm portlayotgan bo'lsa,
+        # minimal filtrni pasaytiramiz (Masalan "nokings" kabi 1000% o'suvchilar uchun)
+        is_moonshot_candidate = (
+            snap.market_cap > 5_000 and
+            snap.market_cap < 800_000 and
+            snap.volume_5m > 3_000 and
+            snap.buy_ratio_5m > 0.70
+        )
+
+        current_min_liq = MIN_LIQUIDITY / 2.5 if is_moonshot_candidate else MIN_LIQUIDITY
+        current_min_vol = MIN_VOLUME_24H / 3 if is_moonshot_candidate else MIN_VOLUME_24H
+
+        # EXPERT CLUSTER BYPASS: Agar Moralis allaqachon bitta tokenda bir nechta expertni topsa,
+        # yanada pastroq filtrga ruxsat beramiz.
+        # Bu 'nokings' kabi juda yangi moonshotlarni tutishga yordam beradi.
+
+        if snap.liquidity < current_min_liq:
+            # Ikkinchi imkoniyat: Moralis expertlar borligini tekshirish
+            experts = await self.moralis.detect_smart_money_groups(snap.chain, snap.token_address)
+            if len(experts) >= 2:
+                log.info(f"Expert Bypass: {snap.token_symbol} ({len(experts)} experts)")
+            else:
+                return None
+        elif snap.volume_24h < current_min_vol:
             return None
         if snap.price_usd <= 0:
             return None
@@ -1217,6 +1240,11 @@ class SignalEngine:
         confidence, factors = self.neural.score(
             snap, sec, is_trending, arb_detected, self.regime.current, lp_score
         )
+
+        # Moonshot Bias
+        if signal_type == "MOONSHOT_ALPHA":
+            confidence += 15
+            if is_trending: confidence += 10
 
         # Cluster bonus (Smart Money Group)
         if len(sec.expert_holders) >= 2:
@@ -1295,6 +1323,12 @@ class SignalEngine:
     def _classify(self, snap: MarketSnapshot) -> Optional[str]:
         r5, r1h, r24 = snap.buy_ratio_5m, snap.buy_ratio_1h, snap.buy_ratio_24h
 
+        # MOONSHOT ALPHA (Masalan "nokings" 1000% o'sishi kabilarni tutish)
+        # Shart: MCap kichik, lekin xarid nisbati va hajm nisbati juda yuqori
+        if (snap.market_cap > 5_000 and snap.market_cap < 600_000 and
+            r5 > 0.75 and snap.volume_5m > snap.volume_1h / 4):
+            return "MOONSHOT_ALPHA"
+
         if r5 > 0.73 and r1h > 0.66 and snap.change_5m > 2 and snap.volume_5m > 500:
             return "STRONG_BUY"
         if r1h > 0.65 and snap.volume_24h > MIN_VOLUME_24H * 4:
@@ -1311,12 +1345,16 @@ class SignalEngine:
 
     def _targets(self, snap: MarketSnapshot, st: str) -> tuple[float,float,float,float]:
         p = snap.price_usd
+        if st == "MOONSHOT_ALPHA":
+            # Moonshot maqsadlari ancha baland bo'ladi
+            return p, p*1.50, p*3.0, p*0.85
         if st in ("STRONG_BUY","BUY","ACCUMULATION","BREAKOUT"):
             return p, p*(1+TARGET_1_PCT/100), p*(1+TARGET_2_PCT/100), p*(1-STOP_LOSS_PCT/100)
         return p, p*(1-TARGET_1_PCT/100), p*(1-TARGET_2_PCT/100), p*(1+STOP_LOSS_PCT/100)
 
     def _build_reason(self, snap: MarketSnapshot, st: str) -> str:
         reasons = {
+            "MOONSHOT_ALPHA": f"PUMP ALERT: MCap juda past (${snap.market_cap:,.0f}), xarid {snap.buy_ratio_5m:.0%}! 10x-50x potentsial.",
             "STRONG_BUY":   f"Kuchli xarid bosimi: 5m {snap.buy_ratio_5m:.0%}, 1h {snap.buy_ratio_1h:.0%} xaridorlar",
             "BUY":          f"1s xarid bosimi: {snap.buy_ratio_1h:.0%} xaridorlar, hajm ${snap.volume_24h:,.0f}",
             "ACCUMULATION": f"Kit akkumulyatsiyasi: narx barqaror ({snap.change_24h:+.1f}%), xarid {snap.buy_ratio_24h:.0%}",
@@ -1396,8 +1434,9 @@ def fmt(sig: SignalResult) -> str:
         )
 
     # Normal signal
+    header_style = "🚀🌕" if sig.signal_type == "MOONSHOT_ALPHA" else ""
     return (
-        f"{sig.emoji} <b>{sig.signal_type.replace('_',' ')} — {html.escape(s.token_symbol)}</b>{extras}\n"
+        f"{sig.emoji} <b>{header_style}{sig.signal_type.replace('_',' ')} — {html.escape(s.token_symbol)}</b>{extras}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🪙 <code>{html.escape(s.token_name)}</code> | <code>{s.chain.upper()}</code> | <code>{s.dex.upper()}</code>\n"
         f"💵 Narx: <code>${p:.10f}</code>\n"
