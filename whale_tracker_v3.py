@@ -205,29 +205,24 @@ class HttpClient:
     def __init__(self):
         self._sess: Optional[aiohttp.ClientSession] = None
 
-    async def sess(self) -> aiohttp.ClientSession:
-        if not self._sess or self._sess.closed:
-            self._sess = aiohttp.ClientSession(
-                headers={"User-Agent": self.UA},
-                connector=aiohttp.TCPConnector(ssl=False),
-            )
-        return self._sess
-
-    async def get(self, url: str, params: dict = None, timeout: int = 12) -> Optional[any]:
+    async def get(self, url: str, params: dict = None, timeout: int = 15) -> Optional[Any]:
         try:
-            s = await self.sess()
-            async with s.get(url, params=params,
-                             timeout=aiohttp.ClientTimeout(total=timeout)) as r:
+            if not self._sess or self._sess.closed:
+                self._sess = aiohttp.ClientSession(
+                    headers={"User-Agent": self.UA},
+                    connector=aiohttp.TCPConnector(ssl=False),
+                )
+
+            async with self._sess.get(url, params=params, timeout=aiohttp.ClientTimeout(total=timeout)) as r:
                 if r.status == 200:
-                    ct = r.headers.get("Content-Type", "")
-                    if "json" in ct:
+                    try:
                         return await r.json(content_type=None)
-                    return await r.text()
-                log.debug(f"HTTP {r.status}: {url}")
-        except asyncio.TimeoutError:
-            log.debug(f"Timeout: {url}")
+                    except:
+                        text = await r.text()
+                        return json.loads(text)
+                log.warning(f"HTTP {r.status}: {url}")
         except Exception as e:
-            log.debug(f"HTTP xatosi {url}: {e}")
+            log.error(f"HTTP {url}: {e}")
         return None
 
     async def close(self):
@@ -253,8 +248,12 @@ class MoralisClient:
             return None
         headers = {"X-API-Key": self.key}
         try:
-            s = await self.http.sess()
-            async with s.get(url, params=params, headers=headers, timeout=10) as r:
+            if not self.http._sess or self.http._sess.closed:
+                self.http._sess = aiohttp.ClientSession(
+                    headers={"User-Agent": self.http.UA},
+                    connector=aiohttp.TCPConnector(ssl=False),
+                )
+            async with self.http._sess.get(url, params=params, headers=headers, timeout=12) as r:
                 if r.status == 200:
                     return await r.json()
         except Exception as e:
@@ -1242,7 +1241,7 @@ class SignalEngine:
         )
 
         # Moonshot Bias
-        if signal_type == "MOONSHOT_ALPHA":
+        if "MOONSHOT" in signal_type:
             confidence += 15
             if is_trending: confidence += 10
 
@@ -1268,7 +1267,6 @@ class SignalEngine:
         # Backtest korreksiyasi
         wr_primary = None
         # Signal turini aniqlash (asosiy mantiq)
-        signal_type = self._classify(snap)
         if signal_type:
             wr = self.backtest.winrate(signal_type)
             wr_primary = wr
@@ -1392,7 +1390,7 @@ def fmt(sig: SignalResult) -> str:
     # Security & Moralis Experts
     sec = sig.security
     sec_str = ""
-    if sec:
+    if sec and (sec.risk_score > 0 or sec.expert_holders):
         sc = "🟢 Xavfsiz" if sec.risk_score < 20 else "🟡 Ehtiyotkor" if sec.risk_score < 50 else "🔴 Xavfli"
         sec_str = (
             f"\n🛡️ <b>GoPlus Security:</b> {sc} (xavf: {sec.risk_score}/100)\n"
@@ -1554,29 +1552,44 @@ class WhaleTrackerV3:
 
         raw: list[dict] = []
 
-        # 1. Discovery: So'nggi profillar (Concurrent fetch)
+        # Control concurrency with a semaphore
+        sem = asyncio.Semaphore(5)
+
+        async def bounded_get_pairs(ta):
+            async with sem:
+                p_list = await self.dex.get_token_pairs(ta)
+                return [p for p in p_list if p.get("chainId") in WATCH_CHAINS][:3]
+
+        async def bounded_search(q, limit=15):
+            async with sem:
+                res = await self.dex.search(q)
+                return res[:limit]
+
+        # 1. Discovery: So'nggi profillar
         profiles = await self.dex.get_latest_profiles()
         log.info(f"Profiles: {len(profiles)} ta topildi.")
+        if profiles:
+            # We must handle the list of profiles carefully
+            profile_tasks = []
+            for pr in profiles[:25]:
+                ta = pr.get("tokenAddress")
+                if ta:
+                    profile_tasks.append(bounded_get_pairs(ta))
 
-        async def fetch_profile_pairs(ta):
-            p_list = await self.dex.get_token_pairs(ta)
-            return [p for p in p_list if p.get("chainId") in WATCH_CHAINS][:3]
+            profile_results = await asyncio.gather(*profile_tasks)
+            for r in profile_results: raw.extend(r)
 
-        profile_tasks = [fetch_profile_pairs(pr.get("tokenAddress")) for pr in profiles[:20] if pr.get("tokenAddress")]
-        profile_results = await asyncio.gather(*profile_tasks)
-        for r in profile_results: raw.extend(r)
-
-        # 2. Search: Har bir chain uchun trending qidiruv
-        search_tasks = [self.dex.search(f"{chain} trending") for chain in WATCH_CHAINS]
+        # 2. Search: Har bir chain uchun trending
+        search_tasks = [bounded_search(f"{chain}") for chain in WATCH_CHAINS] # Try simple chain names first
+        search_tasks += [bounded_search(f"{chain} trending") for chain in WATCH_CHAINS]
         search_results = await asyncio.gather(*search_tasks)
-        for i, res in enumerate(search_results):
-            log.info(f"Chain {WATCH_CHAINS[i]}: {len(res)} ta juftlik.")
-            raw.extend(res[:15])
+        for res in search_results: raw.extend(res)
 
         # 3. CG Trending Discovery
-        cg_tasks = [self.dex.search(symbol) for symbol in list(self.trending._trending_symbols)[:8]]
-        cg_results = await asyncio.gather(*cg_tasks)
-        for res in cg_results: raw.extend(res[:5])
+        if self.trending._trending_symbols:
+            cg_tasks = [bounded_search(symbol, limit=5) for symbol in list(self.trending._trending_symbols)[:10]]
+            cg_results = await asyncio.gather(*cg_tasks)
+            for res in cg_results: raw.extend(res)
 
         # Snapshotlar
         snaps: list[MarketSnapshot] = []
@@ -1598,16 +1611,15 @@ class WhaleTrackerV3:
         log.info(f"Tahlil qilinmoqda: {len(snaps)} juftlik (Parallel)...")
 
         # 4. Parallel Analyze with Concurrency Limit
-        sem = asyncio.Semaphore(5) # Maksimal 5 ta parallel tahlil
         async def bounded_analyze(snap):
             async with sem:
                 try:
                     return await self.engine.analyze(snap)
                 except Exception as e:
-                    log.debug(f"Analyze error: {e}")
+                    log.error(f"Analyze error for {snap.token_symbol}: {e}")
                     return None
 
-        analyze_tasks = [bounded_analyze(s) for s in snaps[:60]] # Max 60 ta tahlil
+        analyze_tasks = [bounded_analyze(s) for s in snaps[:80]] # Process up to 80 potential candidates
         analyze_results = await asyncio.gather(*analyze_tasks)
         signals = [sig for sig in analyze_results if sig]
 
