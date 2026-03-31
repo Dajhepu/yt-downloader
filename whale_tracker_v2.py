@@ -47,9 +47,9 @@ init(autoreset=True)
 #  SOZLAMALAR
 # ══════════════════════════════════════════════════════
 
-# NOTE: Use environment variables or a .env file to set these values.
-TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID")
+# NOTE: Defaults provided for environment-restricted setups like Pydroid 3.
+TELEGRAM_BOT_TOKEN  = os.getenv("TELEGRAM_BOT_TOKEN", "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM")
+TELEGRAM_CHAT_ID    = os.getenv("TELEGRAM_CHAT_ID", "798283148")
 
 MIN_USD_THRESHOLD   = 50_000
 SCAN_INTERVAL_SEC   = 45
