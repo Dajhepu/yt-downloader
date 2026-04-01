@@ -61,16 +61,13 @@ init(autoreset=True)
 #  ⚙️  SOZLAMALAR — Hardcoded credentials
 # ══════════════════════════════════════════════════════════════
 
-TELEGRAM_BOT_TOKEN = "7256069971:AAHNTBZZipJI9mF1K1lRyNiQb2n7qEEDEDY"
+TELEGRAM_BOT_TOKEN = "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM"
 TELEGRAM_CHAT_ID   = "798283148"
 MORALIS_API_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImM5ZTFhYjE4LTRiNDktNGI5Ni04ZjBkLWRmNTE1MmI3NmQ4MCIsIm9yZ0lkIjoiNTA3NzI2IiwidXNlcklkIjoiNTIyNDE3IiwidHlwZUlkIjoiYjQwZTBiZDAtMDcxMi00ZGI1LWI3OTQtZjU1OGZiYjI2YzZjIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3NzQ5NTU2NzAsImV4cCI6NDkzMDcxNTY3MH0.ydI7mToaxqNG2qT5gvPymI4sb-MbjEWW37Ik6IoKpnk"
 
 # ── Token yoshi chegaralari (YANGI TOKENLAR ONLY) ─────────
 NEW_TOKEN_MIN_HOURS  = 0.25    # Minimal yosh: 15 daqiqa (juda yangi = rug xavfi)
 NEW_TOKEN_MAX_HOURS  = 6.0     # Maksimal yosh: 6 soat
-
-# ── Ruxsat etilgan signal turlari ─────────────────────────
-ALLOWED_SIGNALS = {"MOONSHOT_ALPHA", "STRONG_BUY", "BREAKOUT", "RUG_ALERT"}
 
 # ── Signal filtrlari (yangi tokenlar uchun moslantirilgan) ─
 MIN_CONFIDENCE      = 65       # Yangi tokenlar uchun biroz pastroq (kam tarix)
@@ -764,6 +761,7 @@ class OpenPosition:
     t2_hit:      bool = False
     sl_hit:      bool = False
     peak_price:  float = 0.0   # Yangi: eng yuqori narx (trailing stop uchun)
+    last_milestone: float = 0.0 # Oxirgi xabar yuborilgan o'sish foizi
 
 
 class PositionTracker:
@@ -780,14 +778,25 @@ class PositionTracker:
             opened_at=datetime.now(), peak_price=sig.entry,
         )
 
-    async def check_all(self, snaps: list):
+    async def check_all(self, snaps: list, dex_api: 'DexScreenerAPI' = None):
         snap_map = {s.pair_address: s for s in snaps}
         to_close = []
 
         for addr, pos in self.positions.items():
             cur = snap_map.get(addr)
             if not cur:
+                # Agar snap ichida bo'lmasa, API dan to'g'ridan-to'g'ri so'raymiz
+                if dex_api:
+                    try:
+                        pair_data = await dex_api.get_pair(pos.snap.chain, addr)
+                        if pair_data:
+                            cur = parse_snap(pair_data)
+                    except Exception as e:
+                        log.debug(f"Position tracker API error ({addr}): {e}")
+
+            if not cur:
                 continue
+
             p   = cur.price_usd
             sym = pos.snap.token_symbol
 
@@ -796,6 +805,17 @@ class PositionTracker:
                 pos.peak_price = p
 
             pnl_pct = (p / pos.entry_price - 1) * 100
+
+            # O'sish milestones (har 50% o'sishda xabar yuborish)
+            current_milestone = math.floor(pnl_pct / 50) * 50
+            if current_milestone > pos.last_milestone and current_milestone >= 50:
+                pos.last_milestone = current_milestone
+                await self.send(
+                    f"📈 <b>{html.escape(sym)} — KUCHLI O'SISH!</b>\n"
+                    f"Signal berilgandan beri: <b>+{pnl_pct:.1f}%</b> o'sdi! 🔥\n"
+                    f"Kirish: <code>${pos.entry_price:.8f}</code> → Hozir: <code>${p:.8f}</code>\n"
+                    f"🚀 Moonshot davom etmoqda!"
+                )
 
             # Maqsad 1
             if not pos.t1_hit and p >= pos.target_1:
@@ -1699,7 +1719,7 @@ class WhaleTrackerV4:
         self.engine.regime.update(snaps)
 
         await self.backtest.check(snaps)
-        await self.tracker.check_all(snaps)
+        await self.tracker.check_all(snaps, dex_api=self.dex)
 
         # Parallel analiz
         analyzed = 0
