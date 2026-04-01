@@ -1435,8 +1435,11 @@ def fmt(sig: SignalResult) -> str:
 
     # Normal signal
     header_style = "🚀🌕" if sig.signal_type == "MOONSHOT_ALPHA" else ""
+    is_buy = sig.signal_type in ("MOONSHOT_ALPHA", "STRONG_BUY", "BUY", "ACCUMULATION", "BREAKOUT")
+    buy_label = " [XARID SIGNALI]" if is_buy else " [SOTISH/XAVF]"
+
     return (
-        f"{sig.emoji} <b>{header_style}{sig.signal_type.replace('_',' ')} — {html.escape(s.token_symbol)}</b>{extras}\n"
+        f"{sig.emoji} <b>{header_style}{sig.signal_type.replace('_',' ')}{buy_label} — {html.escape(s.token_symbol)}</b>{extras}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🪙 <code>{html.escape(s.token_name)}</code> | <code>{s.chain.upper()}</code> | <code>{s.dex.upper()}</code>\n"
         f"💵 Narx: <code>${p:.10f}</code>\n"
