@@ -27,7 +27,7 @@ import random
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Any
 
 import aiohttp
 from colorama import Fore, Style, init
