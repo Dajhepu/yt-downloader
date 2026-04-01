@@ -273,7 +273,7 @@ class HttpClient:
         if not self._sess or self._sess.closed:
             self._sess = aiohttp.ClientSession(
                 headers={"User-Agent": self.UA, "Accept": "application/json"},
-                connector=aiohttp.TCPConnector(ssl=False, limit=20),
+                connector=aiohttp.TCPConnector(limit=20),
             )
         return self._sess
 
@@ -1781,18 +1781,27 @@ class WhaleTrackerV4:
             f"⏸ Holat: <code>{'TOXTATILGAN' if self.paused else 'FAOL'}</code>"
         )
 
+    def _is_auth(self, u: Update) -> bool:
+        """Faqat egasi (TELEGRAM_CHAT_ID) botni boshqarishi mumkin."""
+        uid = u.effective_user.id if u.effective_user else None
+        # Ikkalasi ham int yoki string bo'lishi mumkin, shuning uchun stringga o'tkazamiz
+        return str(uid) == str(TELEGRAM_CHAT_ID)
+
     async def h_start(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        if not self._is_auth(u): return
         await u.message.reply_text(
             "🐋 <b>Whale Tracker Pro v4.0</b>\nBoshqaruv paneli:",
             parse_mode=ParseMode.HTML, reply_markup=self._kb()
         )
 
     async def h_status(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        if not self._is_auth(u): return
         await u.message.reply_text(
             await self._status_text(), parse_mode=ParseMode.HTML, reply_markup=self._kb()
         )
 
     async def h_setlimit(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        if not self._is_auth(u): return
         try:
             v = int(c.args[0])
             if v < 10_000:
@@ -1809,6 +1818,7 @@ class WhaleTrackerV4:
 
     async def h_setconf(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
         """Minimal confidence darajasini sozlash."""
+        if not self._is_auth(u): return
         try:
             v = int(c.args[0])
             if not (50 <= v <= 95):
@@ -1824,6 +1834,7 @@ class WhaleTrackerV4:
             await u.message.reply_text("Foydalanish: /setconf 70")
 
     async def h_cb(self, u: Update, c: ContextTypes.DEFAULT_TYPE):
+        if not self._is_auth(u): return
         q = u.callback_query
         await q.answer()
         d = q.data
