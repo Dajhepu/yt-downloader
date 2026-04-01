@@ -354,6 +354,11 @@ class DexScreenerAPI:
         data = await self._get("/token-profiles/latest/v1")
         return data if isinstance(data, list) else []
 
+    async def get_boosted_tokens(self) -> list:
+        """Boost qilingan (reklama) tokenlarni olish."""
+        data = await self._get("/token-boosts/latest/v1")
+        return data if isinstance(data, list) else []
+
     async def search(self, query: str) -> list:
         data = await self._get("/latest/dex/search", params={"q": query})
         return (data or {}).get("pairs", []) or []
@@ -1225,13 +1230,18 @@ class SignalEngine:
             snap.age_hours >= MOONSHOT_MIN_AGE_HOURS
         )
 
+        # Yosh tokenlar uchun dinamik minimal hajm (yoshiga qarab kamayadi)
+        # Agar token < 1 soat bo'lsa, hajm talabi kamayadi (min 20%)
+        vol_factor = min(1.0, max(0.2, snap.age_hours))
+        dynamic_vol_1h = MIN_VOLUME_1H * vol_factor
+
         liq_min = MIN_LIQUIDITY * 0.5 if is_moonshot else MIN_LIQUIDITY
         # Yangi tokenlar uchun 24h hajm o'rniga 1h hajmni tekshiramiz
-        vol_ok = snap.volume_1h >= MIN_VOLUME_1H or snap.volume_24h >= MIN_VOLUME_24H
+        vol_ok = snap.volume_1h >= dynamic_vol_1h or snap.volume_24h >= MIN_VOLUME_24H
 
         if snap.liquidity < liq_min or not vol_ok:
             # Expert bypass tekshirish
-            if MORALIS_API_KEY:
+            if self.moralis.enabled:
                 experts = await self.moralis.detect_smart_money(snap.chain, snap.token_address)
                 if len(experts) >= 2:
                     log.info(f"Expert bypass: {snap.token_symbol} ({len(experts)} ta expert)")
@@ -1636,11 +1646,24 @@ class WhaleTrackerV4:
                     log.debug(f"search xatosi: {e}")
                     return []
 
-        # 1. So'nggi profillar
-        profiles = await self.dex.get_latest_profiles()
-        if profiles:
-            tasks   = [safe_get_pairs(pr["tokenAddress"])
-                       for pr in profiles[:20] if pr.get("tokenAddress")]
+        # 1. So'nggi profillar va Boosted tokenlar
+        discovery_tasks = [
+            self.dex.get_latest_profiles(),
+            self.dex.get_boosted_tokens()
+        ]
+        discovery_results = await asyncio.gather(*discovery_tasks)
+
+        profiles = discovery_results[0] or []
+        boosts   = discovery_results[1] or []
+
+        all_token_addresses = set()
+        for pr in profiles[:25]:
+            if pr.get("tokenAddress"): all_token_addresses.add(pr["tokenAddress"])
+        for b in boosts[:25]:
+            if b.get("tokenAddress"): all_token_addresses.add(b["tokenAddress"])
+
+        if all_token_addresses:
+            tasks   = [safe_get_pairs(ta) for ta in list(all_token_addresses)]
             results = await asyncio.gather(*tasks)
             for r in results: raw.extend(r)
 
