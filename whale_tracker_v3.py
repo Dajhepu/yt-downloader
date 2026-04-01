@@ -209,7 +209,7 @@ class HttpClient:
         try:
             if not self._sess or self._sess.closed:
                 self._sess = aiohttp.ClientSession(
-                    headers={"User-Agent": self.UA},
+                    headers={"User-Agent": self.UA, "Accept": "application/json"},
                     connector=aiohttp.TCPConnector(ssl=False),
                 )
 
@@ -220,9 +220,11 @@ class HttpClient:
                     except:
                         text = await r.text()
                         return json.loads(text)
-                log.warning(f"HTTP {r.status}: {url}")
+                else:
+                    body = await r.text()
+                    log.warning(f"HTTP {r.status} for {url} | Body: {body[:100]}")
         except Exception as e:
-            log.error(f"HTTP {url}: {e}")
+            log.error(f"HTTP Error for {url}: {e}")
         return None
 
     async def close(self):
