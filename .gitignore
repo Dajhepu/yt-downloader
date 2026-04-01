@@ -1,5 +1,0 @@
-__pycache__/
-*.log
-*.pyc
-.env
-geocode_cache.json
