@@ -61,7 +61,7 @@ init(autoreset=True)
 #  ⚙️  SOZLAMALAR — Hardcoded credentials
 # ══════════════════════════════════════════════════════════════
 
-TELEGRAM_BOT_TOKEN = "7256069971:AAHNTBZZipJI9mF1K1lRyNiQb2n7qEEDEDY"
+TELEGRAM_BOT_TOKEN = "8489499074:AAEbc1ZNVEBprLhPhnoiY0orE4oRmno9UYM"
 TELEGRAM_CHAT_ID   = "798283148"
 MORALIS_API_KEY    = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImM5ZTFhYjE4LTRiNDktNGI5Ni04ZjBkLWRmNTE1MmI3NmQ4MCIsIm9yZ0lkIjoiNTA3NzI2IiwidXNlcklkIjoiNTIyNDE3IiwidHlwZUlkIjoiYjQwZTBiZDAtMDcxMi00ZGI1LWI3OTQtZjU1OGZiYjI2YzZjIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3NzQ5NTU2NzAsImV4cCI6NDkzMDcxNTY3MH0.ydI7mToaxqNG2qT5gvPymI4sb-MbjEWW37Ik6IoKpnk"
 
@@ -635,10 +635,16 @@ class MoralisClient:
         hits  = min(total // 4, 12)
         rate  = (hits / total * 100) if total >= 5 else (hits * 10)
 
+        # Smart Money Heuristics:
+        # 1. Success rate > 30% with enough history
+        # 2. At least 3 "Alpha" (early entry) hits
+        # 3. Or a very active successful trader
+        is_expert = (hits >= 3 and rate > 30.0) or (hits >= 5)
+
         perf = WalletExpertise(
             address=wallet, success_rate=round(rate, 1),
             alpha_hits=hits, total_trades=total,
-            is_expert=(hits >= 3 and rate > 25)
+            is_expert=is_expert
         )
         self._cache[wallet] = perf
         return perf
@@ -762,6 +768,7 @@ class OpenPosition:
     sl_hit:      bool = False
     peak_price:  float = 0.0   # Yangi: eng yuqori narx (trailing stop uchun)
     last_milestone: float = 0.0 # Oxirgi xabar yuborilgan o'sish foizi
+    ath_pnl:     float = 0.0    # All-Time High PnL %
 
 
 class PositionTracker:
@@ -806,7 +813,12 @@ class PositionTracker:
 
             pnl_pct = (p / pos.entry_price - 1) * 100
 
+            # ATH yangilash
+            if pnl_pct > pos.ath_pnl:
+                pos.ath_pnl = pnl_pct
+
             # O'sish milestones (har 50% o'sishda xabar yuborish)
+            # Masalan: 50%, 100%, 150%...
             current_milestone = math.floor(pnl_pct / 50) * 50
             if current_milestone > pos.last_milestone and current_milestone >= 50:
                 pos.last_milestone = current_milestone
@@ -814,6 +826,7 @@ class PositionTracker:
                     f"📈 <b>{html.escape(sym)} — KUCHLI O'SISH!</b>\n"
                     f"Signal berilgandan beri: <b>+{pnl_pct:.1f}%</b> o'sdi! 🔥\n"
                     f"Kirish: <code>${pos.entry_price:.8f}</code> → Hozir: <code>${p:.8f}</code>\n"
+                    f"🏆 ATH: <code>+{pos.ath_pnl:.1f}%</code>\n"
                     f"🚀 Moonshot davom etmoqda!"
                 )
 
@@ -1376,6 +1389,9 @@ class SignalEngine:
         if snap.age_hours > 720: confluence.append("1 oy+ barqaror token ✅")
         if sec.risk_score < 10 and sec.scanned:
             confluence.append("GoPlus: Xavfsiz contract ✅")
+        if len(sec.expert_holders) >= 2:
+            confluence.append(f"Smart Money Cluster: {len(sec.expert_holders)} ta expert ✅")
+
         tf_bull = sum(1 for v in tf_data.values() if v.get("bias") == "bull")
         if tf_bull >= 3:
             confluence.append(f"Multi-TF: {tf_bull}/4 bullish ✅")
@@ -1498,10 +1514,11 @@ def fmt(sig: SignalResult) -> str:
             f"Top: <code>{sec.top_holder_pct:.1f}%</code> | "
             f"Tax: <code>{sec.buy_tax:.0f}%/{sec.sell_tax:.0f}%</code>"
         )
-        if getattr(sec, "expert_holders", []):
-            sec_str += (
-                f"\n🧠 <b>Smart Money:</b> {len(sec.expert_holders)} expert hamyon"
-            )
+        experts = getattr(sec, "expert_holders", [])
+        if experts:
+            sec_str += f"\n🧠 <b>Smart Money Cluster:</b> {len(experts)} ta expert topildi!"
+            for i, exp in enumerate(experts[:3], 1):
+                sec_str += f"\n  {i}. <code>{exp.address[:6]}...{exp.address[-4:]}</code> (Win: {exp.success_rate}%)"
 
     # Vaqt
     time_str = f"\n⏱️ Taxminiy vaqt: <code>~{sig.estimated_hours:.1f} soat</code>" \
