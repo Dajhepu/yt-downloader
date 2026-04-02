@@ -149,7 +149,7 @@ def filter_markets(markets):
                         murl = f"https://polymarket.com/?conditionId={m.get('conditionId', '')}"
 
                     end_date_str = m.get('endDate', '')
-                    
+
                     if state['time_filter'] != "all" and end_date_str:
                         try:
                             ed = datetime.strptime(end_date_str[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
