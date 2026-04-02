@@ -265,6 +265,16 @@ class HttpClient:
     def __init__(self):
         self._sess: Optional[aiohttp.ClientSession] = None
         self._last_requests: deque = deque(maxlen=100)  # Rate limiting uchun
+        self.bot_token = TELEGRAM_BOT_TOKEN
+        self.chat_id = TELEGRAM_CHAT_ID
+
+    async def send_to_tg(self, text: str):
+        """Xatoliklarni Telegramga yuborish uchun yordamchi."""
+        url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+        try:
+            async with self._get_session().post(url, json={"chat_id": self.chat_id, "text": text, "parse_mode": "HTML"}) as r:
+                pass
+        except: pass
 
     def _get_session(self) -> aiohttp.ClientSession:
         if not self._sess or self._sess.closed:
@@ -597,6 +607,7 @@ class MoralisClient:
                 elif r.status == 401:
                     log.error("Moralis API kaliti noto'g'ri!")
                     self.enabled = False
+                    asyncio.create_task(self.http.send_to_tg("⚠️ <b>MORALIS ERROR:</b> API kaliti noto'g'ri yoki amal qilish muddati tugagan. Expert tahlili to'xtatildi!"))
                     return None
                 else:
                     return None
@@ -1801,6 +1812,8 @@ class WhaleTrackerV4:
         top3   = sorted(self.neural.weights.items(), key=lambda x: x[1], reverse=True)[:3]
         top3_s = ", ".join(f"{k[:12]}:{v:.1f}" for k,v in top3)
 
+        m_status = "✅ LIVE" if self.moralis.enabled else "❌ API KEY ERROR"
+
         return (
             f"📊 <b>WTP v4.5 — NEW TOKENS ONLY</b>\n\n"
             f"⏰ Kuzatish oynasi: <code>{NEW_TOKEN_MIN_HOURS*60:.0f}daq → {NEW_TOKEN_MAX_HOURS:.0f}soat</code>\n"
@@ -1809,6 +1822,7 @@ class WhaleTrackerV4:
             f"📨 Signallar: <code>{self.total_signals}</code>\n"
             f"☠️ Rug alertlar: <code>{self.rug_alerts}</code>\n"
             f"🚫 Filtrlangan: <code>{self.filtered_out}</code>\n"
+            f"🧠 Moralis Intelligence: <b>{m_status}</b>\n"
             f"📚 Umumiy to'g'rilik: {wr_s}\n"
             f"💰 O'rtacha P&L: {pl_s}\n"
             f"💼 Ochiq pozitsiyalar: <code>{pos_n}</code>\n"

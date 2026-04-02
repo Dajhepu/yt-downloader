@@ -1,39 +1,19 @@
-
 import asyncio
 import aiohttp
-import logging
+import json
 
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger("debug-api")
+async def test_discovery():
+    headers = {"User-Agent": "Mozilla/5.0"}
+    async with aiohttp.ClientSession(headers=headers) as session:
+        # Test profiles
+        async with session.get("https://api.dexscreener.com/token-profiles/latest/v1") as r:
+            profiles = await r.json()
+            print(f"Profiles found: {len(profiles) if isinstance(profiles, list) else 'Error'}")
 
-async def test():
-    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    async with aiohttp.ClientSession(headers={"User-Agent": ua}) as session:
-        # 1. Profiles
-        url = "https://api.dexscreener.com/token-profiles/latest/v1"
-        async with session.get(url) as r:
-            log.info(f"Profiles Status: {r.status}")
-            if r.status == 200:
-                data = await r.json()
-                log.info(f"Profiles count: {len(data)}")
-            else:
-                log.info(f"Body: {await r.text()}")
-
-        # 2. Search 'ethereum trending'
-        url = "https://api.dexscreener.com/latest/dex/search?q=ethereum trending"
-        async with session.get(url) as r:
-            log.info(f"Search 'ethereum trending' Status: {r.status}")
-            if r.status == 200:
-                data = await r.json()
-                log.info(f"Search results: {len(data.get('pairs', []))}")
-
-        # 3. Search 'solana'
-        url = "https://api.dexscreener.com/latest/dex/search?q=solana"
-        async with session.get(url) as r:
-            log.info(f"Search 'solana' Status: {r.status}")
-            if r.status == 200:
-                data = await r.json()
-                log.info(f"Search results: {len(data.get('pairs', []))}")
+        # Test boosts
+        async with session.get("https://api.dexscreener.com/token-boosts/latest/v1") as r:
+            boosts = await r.json()
+            print(f"Boosts found: {len(boosts) if isinstance(boosts, list) else 'Error'}")
 
 if __name__ == "__main__":
-    asyncio.run(test())
+    asyncio.run(test_discovery())
