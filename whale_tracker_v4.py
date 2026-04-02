@@ -1273,22 +1273,14 @@ class SignalEngine:
         vol_ok = snap.volume_1h >= dynamic_vol_1h or snap.volume_24h >= MIN_VOLUME_24H
 
         if snap.liquidity < liq_min or not vol_ok:
-            # Expert bypass tekshirish
-            if self.moralis.enabled:
-                experts = await self.moralis.detect_smart_money(snap.chain, snap.token_address)
-                if len(experts) >= 2:
-                    log.info(f"Expert bypass: {snap.token_symbol} ({len(experts)} ta expert)")
-                else:
-                    return None
-            else:
-                return None
+            # Bypass o'chirildi, chunki endi barcha signallar expert talab qiladi
+            return None
 
         if snap.price_usd <= 0 or not self._rate_ok(snap.pair_address):
             return None
 
         # 4. GoPlus xavfsizlik skaneri (MAJBURIY)
         sec = await self.goplus.scan(snap.chain, snap.token_address)
-        sec.expert_holders = []
 
         # 5. Qat'iy xavfsizlik filtri
         passed, reason = self.goplus.passes_strict_filter(sec, snap)
@@ -1296,14 +1288,20 @@ class SignalEngine:
             log.debug(f"Security filter: {snap.token_symbol} — {reason}")
             return None
 
-        # 6. Signal turi
+        # 6. Moralis expert tahlili (STRICT: Faqat muvaffaqiyatli traderlar borlari yuboriladi)
+        sec.expert_holders = []
+        if self.moralis.enabled:
+            sec.expert_holders = await self.moralis.detect_smart_money(snap.chain, snap.token_address)
+
+        if not sec.expert_holders:
+            # Agar expertlar bo'lmasa, tokenni e'tiborsiz qoldiramiz (Strict mode)
+            log.debug(f"Expert filter: {snap.token_symbol} — Smart money topilmadi")
+            return None
+
+        # 7. Signal turi
         signal_type = self._classify(snap)
         if not signal_type:
             return None
-
-        # 7. Moralis expert tahlili (faqat yaxshi signallarda)
-        if "BUY" in signal_type and snap.liquidity > MIN_LIQUIDITY and MORALIS_API_KEY:
-            sec.expert_holders = await self.moralis.detect_smart_money(snap.chain, snap.token_address)
 
         # 8. Rug tekshiruvi
         is_rug, is_wash, risk_flags = self.rug.check(snap, sec)
@@ -1547,6 +1545,7 @@ def fmt(sig: SignalResult) -> str:
     return (
         f"{sig.emoji} <b>{h_emoji}{sig.signal_type.replace('_',' ')} — "
         f"{html.escape(s.token_symbol)}</b>{extras}\n"
+        f"🌟 <b>SMART MONEY DETECTED!</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"🪙 <code>{html.escape(s.token_name)}</code> | "
         f"<code>{s.chain.upper()}</code> | <code>{s.dex}</code>\n"
